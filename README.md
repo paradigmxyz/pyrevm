@@ -1,6 +1,25 @@
-# pyrevm
+# <h1 align="center"> pyrevm </h1>
 
 **Blazing-fast Python bindings to [revm](https://github.com/bluealloy/revm/)**
+
+![py](https://github.com/gakonst/pyrevm/workflows/py/badge.svg)
+![rust](https://github.com/gakonst/pyrevm/workflows/rust/badge.svg)
+
+## Installation
+
+```
+pip install pyrevm
+```
+
+## Example Usage
+
+```python
+from pyrevm import EVM
+
+evm = EVM();
+# TODO
+```
+
 
 ## Develop
 
