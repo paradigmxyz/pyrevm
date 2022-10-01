@@ -1,3 +1,8 @@
+# Can import it normally
 import pyrevm
 
-# instantiate a revm
+# Easy instantiation
+evm = pyrevm.EVM();
+
+# Run!
+print(evm.foo())
