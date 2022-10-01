@@ -1,0 +1,28 @@
+name: pytest
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: "1.1.15"
+
+      - name: Install deps
+        run: poetry install
+
+      # May need to install Rust?
+      - name: Build the Rust package
+        run: poetry run maturin develop
+
+      - name: Run tests
+        run: poetry run pytest ./pytest/*
