@@ -4,7 +4,7 @@ use crate::{
 };
 use pyo3::prelude::*;
 use revm::{
-    db::{CacheDB, EmptyDB},
+    db::{CacheDB, DatabaseRef, EmptyDB},
     return_ok, Return,
 };
 
@@ -27,6 +27,14 @@ impl EVM {
         let db = CacheDB::new(EmptyDB());
         evm.database(db);
         EVM(evm)
+    }
+
+    /// Inserts the provided account information in the database at
+    /// the specified address.
+    fn basic(_self: PyRef<'_, Self>, address: &str) -> PyResult<Option<AccountInfo>> {
+        let db = _self.0.db.as_ref().unwrap();
+        let acc = db.basic(addr(address)?)?;
+        Ok(acc.map(Into::into))
     }
 
     /// Inserts the provided account information in the database at

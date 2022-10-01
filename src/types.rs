@@ -1,11 +1,11 @@
 use crate::utils::{addr, u256, uint};
 use num_bigint::BigUint;
-use primitive_types::H256;
+use primitive_types::{H256, U256};
 use pyo3::{prelude::*, types::PyBytes};
 use revm::{Bytecode, TransactTo};
 
 #[pyclass]
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct AccountInfo(revm::AccountInfo);
 
 #[pymethods]
@@ -61,6 +61,10 @@ impl AccountInfo {
             nonce,
         }))
     }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 impl From<revm::AccountInfo> for AccountInfo {
@@ -82,11 +86,11 @@ pub struct Env(revm::Env);
 #[pymethods]
 impl Env {
     #[new]
-    fn new(cfg: CfgEnv, block: BlockEnv, tx: TxEnv) -> Self {
+    fn new(cfg: Option<CfgEnv>, block: Option<BlockEnv>, tx: Option<TxEnv>) -> Self {
         Env(revm::Env {
-            cfg: cfg.into(),
-            block: block.into(),
-            tx: tx.into(),
+            cfg: cfg.unwrap_or_default().into(),
+            block: block.unwrap_or_default().into(),
+            tx: tx.unwrap_or_default().into(),
         })
     }
 }
@@ -112,17 +116,30 @@ impl TxEnv {
     #[new]
     fn new(
         caller: Option<&str>,
-        gas_limit: u64,
-        gas_price: BigUint,
+        gas_limit: Option<u64>,
+        gas_price: Option<BigUint>,
         gas_priority_fee: Option<BigUint>,
         to: Option<&str>,
-        value: BigUint,
-        data: Vec<u8>,
+        value: Option<BigUint>,
+        data: Option<Vec<u8>>,
         chain_id: Option<u64>,
         nonce: Option<u64>,
     ) -> PyResult<Self> {
         Ok(TxEnv(revm::TxEnv {
             caller: addr(caller.unwrap_or_default())?,
+            gas_limit: gas_limit.unwrap_or(u64::MAX),
+            gas_price: u256(gas_price.unwrap_or_default()),
+            gas_priority_fee: gas_priority_fee.map(u256),
+            transact_to: match to {
+                Some(inner) => TransactTo::Call(addr(inner)?),
+                // TODO: Figure out how to integrate CREATE2 here
+                None => TransactTo::Create(revm::CreateScheme::Create),
+            },
+            value: u256(value.unwrap_or_default()),
+            data: data.unwrap_or_default().into(),
+            chain_id,
+            nonce,
+            // TODO: Add access list.
             ..Default::default()
         }))
     }
@@ -135,7 +152,7 @@ impl From<TxEnv> for revm::TxEnv {
 }
 
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BlockEnv(revm::BlockEnv);
 
 #[pymethods]
@@ -152,7 +169,11 @@ impl BlockEnv {
         Ok(BlockEnv(revm::BlockEnv {
             number: u256(number.unwrap_or_default()),
             coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
-            timestamp: u256(timestamp.unwrap_or_default()),
+            timestamp: if let Some(timestamp) = timestamp {
+                u256(timestamp)
+            } else {
+                U256::from(1)
+            },
             difficulty: u256(difficulty.unwrap_or_default()),
             basefee: u256(basefee.unwrap_or_default()),
             gas_limit: u256(gas_limit.unwrap_or_else(|| u64::MAX.into())),
@@ -171,7 +192,7 @@ impl From<BlockEnv> for revm::BlockEnv {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct CfgEnv(revm::CfgEnv);
 
 #[pymethods]
@@ -180,11 +201,9 @@ impl CfgEnv {
     fn new() -> Self {
         CfgEnv(revm::CfgEnv::default())
     }
-}
 
-impl From<revm::CfgEnv> for CfgEnv {
-    fn from(env: revm::CfgEnv) -> Self {
-        CfgEnv(env)
+    fn __str__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
     }
 }
 
