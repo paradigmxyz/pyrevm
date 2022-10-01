@@ -16,6 +16,7 @@ authors = ["Georgios Konstantopoulos <me@gakonst.com>"]
 [tool.poetry.dependencies]
 python = "^3.10"
 maturin = "^0.13.5"
+pytest = "^7.1.3"
 
 [tool.poetry.dev-dependencies]
 

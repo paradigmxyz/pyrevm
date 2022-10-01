@@ -1,8 +1,8 @@
-# Can import it normally
+import pytest
+
 import pyrevm
 
-# Easy instantiation
-evm = pyrevm.EVM();
-
-# Run!
-print(evm.foo())
+def test_revm():
+    evm = pyrevm.EVM();
+    print(evm.foo())
+    assert evm.foo() == 1
