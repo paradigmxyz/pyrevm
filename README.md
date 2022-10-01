@@ -27,6 +27,8 @@ We use Poetry for virtual environment management and [Maturin](https://github.co
 
 To build the library, run `poetry run maturin develop`
 
+Note: If building for production, do not forget the `--release` flag, else performance will be degraded.
+
 ## Benchmarks
 
 TODO
