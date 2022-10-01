@@ -9,5 +9,7 @@ name = "pyrevm"
 crate-type = ["cdylib"]
 
 [dependencies]
+primitive-types = "0.11.0"
 pyo3 = { version = "0.16.5", features = ["extension-module", "num-bigint"] }
 revm = "2.1.0"
+num-bigint = "*"

@@ -533,6 +533,8 @@ dependencies = [
 name = "pyrevm"
 version = "0.1.0"
 dependencies = [
+ "num-bigint",
+ "primitive-types",
  "pyo3",
  "revm",
 ]
