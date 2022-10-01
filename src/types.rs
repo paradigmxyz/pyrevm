@@ -1,7 +1,66 @@
-use crate::utils::addr;
+use crate::utils::{addr, u256};
 use num_bigint::BigUint;
-use pyo3::prelude::*;
-use revm::TransactTo;
+use primitive_types::H256;
+use pyo3::{prelude::*, types::PyBytes};
+use revm::{Bytecode, TransactTo};
+
+#[pyclass]
+#[derive(Default, Clone)]
+pub struct AccountInfo(revm::AccountInfo);
+
+#[pymethods]
+impl AccountInfo {
+    #[getter]
+    fn balance(_self: PyRef<'_, Self>) -> PyResult<BigUint> {
+        let mut bytes = [0; 32];
+        _self.0.balance.to_little_endian(&mut bytes);
+        let res = BigUint::from_bytes_le(&bytes);
+        Ok(res)
+    }
+
+    #[new]
+    #[args(nonce = "0")]
+    fn new(
+        balance: Option<BigUint>,
+        nonce: u64,
+        code_hash: Option<&PyBytes>,
+        // TODO: Figure out what the best way to take in
+        // bytes from pyhouu
+        code: Option<&PyBytes>,
+    ) -> PyResult<Self> {
+        let code_hash = code_hash
+            .map(|bytes| {
+                let bytes = bytes.as_bytes();
+                H256::from_slice(bytes)
+            })
+            .unwrap_or(revm::KECCAK_EMPTY);
+        let code = code
+            .map(|bytes| {
+                let bytes = bytes.as_bytes();
+                bytes.to_vec()
+            })
+            .map(|bytes| Bytecode::new_raw(bytes.into()));
+
+        Ok(AccountInfo(revm::AccountInfo {
+            balance: balance.map(u256).unwrap_or_default(),
+            code_hash,
+            code,
+            nonce,
+        }))
+    }
+}
+
+impl From<revm::AccountInfo> for AccountInfo {
+    fn from(env: revm::AccountInfo) -> Self {
+        AccountInfo(env)
+    }
+}
+
+impl From<AccountInfo> for revm::AccountInfo {
+    fn from(env: AccountInfo) -> Self {
+        env.0
+    }
+}
 
 #[pyclass]
 #[derive(Clone)]
@@ -61,7 +120,7 @@ impl TxEnv {
 
     #[setter]
     fn value(mut _self: PyRefMut<'_, Self>, value: BigUint) -> PyResult<()> {
-        _self.0.value = primitive_types::U256::from_little_endian(&value.to_bytes_le());
+        _self.0.value = u256(value);
         Ok(())
     }
 }

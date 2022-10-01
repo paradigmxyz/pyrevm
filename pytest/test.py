@@ -2,23 +2,26 @@ import pytest
 
 from pyrevm import *
 
+address = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+
 def test_revm():
     evm = EVM();
+    cfg = CfgEnv();
     block = BlockEnv(gas_limit = 9999999);
-    address = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-    address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
-    info = {
-        "balance": int(1e36),
-    }
-    evm.insert_account(address, info)
+    info = AccountInfo(
+        balance = 1000000000000000000000000000000000000
+    )
+    evm.insert_account_info(address, info)
 
     tx = TxEnv();
     tx.caller = address
-    tx.to = address2 # invalid addr will type error
-    tx.value = int(1e36) # -1 will type error
-    cfg = CfgEnv();
+    tx.to = address2
+    tx.value = 1000000000000000000000000000000000000
+
     evm.env = Env(cfg, block, tx)
     res = evm.transact_commit();
     print(res)
     evm.dump();
+    print(info.balance)

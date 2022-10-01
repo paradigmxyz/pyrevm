@@ -1,9 +1,11 @@
-use crate::{types::Env, utils::addr};
-use primitive_types::H160 as Address;
+use crate::{
+    types::{AccountInfo, Env},
+    utils::addr,
+};
 use pyo3::prelude::*;
 use revm::{
     db::{CacheDB, EmptyDB},
-    return_ok, AccountInfo, ExecutionResult, Return,
+    return_ok, Return,
 };
 
 type DB = CacheDB<EmptyDB>;
@@ -22,19 +24,20 @@ impl EVM {
     #[new]
     fn new() -> Self {
         let mut evm = revm::EVM::new();
-        let mut db = CacheDB::new(EmptyDB());
-        db.insert_account_info(Address::random(), AccountInfo::default());
+        let db = CacheDB::new(EmptyDB());
         evm.database(db);
         EVM(evm)
     }
 
+    /// Inserts the provided account information in the database at
+    /// the specified address.
     fn insert_account_info(
         mut _self: PyRefMut<'_, Self>,
         address: &str,
         info: AccountInfo,
     ) -> PyResult<()> {
         let db = _self.0.db().unwrap();
-        db.insert_account_info(addr(address)?, info);
+        db.insert_account_info(addr(address)?, info.into());
 
         Ok(())
     }
