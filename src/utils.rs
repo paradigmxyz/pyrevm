@@ -16,3 +16,9 @@ pub fn h256(addr: &str) -> Result<H256, PyErr> {
 pub fn u256(value: BigUint) -> U256 {
     U256::from_little_endian(&value.to_bytes_le())
 }
+
+pub fn uint(value: U256) -> BigUint {
+    let mut bytes = [0; 32];
+    value.to_little_endian(&mut bytes);
+    BigUint::from_bytes_le(&bytes)
+}

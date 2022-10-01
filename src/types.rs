@@ -1,4 +1,4 @@
-use crate::utils::{addr, u256};
+use crate::utils::{addr, u256, uint};
 use num_bigint::BigUint;
 use primitive_types::H256;
 use pyo3::{prelude::*, types::PyBytes};
@@ -10,12 +10,27 @@ pub struct AccountInfo(revm::AccountInfo);
 
 #[pymethods]
 impl AccountInfo {
+    // TODO: Is there a way to avoid all this boilerplate somehow?
     #[getter]
-    fn balance(_self: PyRef<'_, Self>) -> PyResult<BigUint> {
-        let mut bytes = [0; 32];
-        _self.0.balance.to_little_endian(&mut bytes);
-        let res = BigUint::from_bytes_le(&bytes);
-        Ok(res)
+    fn balance(_self: PyRef<'_, Self>) -> BigUint {
+        uint(_self.0.balance)
+    }
+    #[getter]
+    fn nonce(_self: PyRef<'_, Self>) -> u64 {
+        _self.0.nonce
+    }
+    #[getter]
+    fn code(_self: PyRef<'_, Self>) -> Vec<u8> {
+        _self
+            .0
+            .code
+            .as_ref()
+            .map(|x| x.bytes().to_vec())
+            .unwrap_or_default()
+    }
+    #[getter]
+    fn code_hash(_self: PyRef<'_, Self>) -> [u8; 32] {
+        _self.0.code_hash.to_fixed_bytes()
     }
 
     #[new]
@@ -24,8 +39,6 @@ impl AccountInfo {
         balance: Option<BigUint>,
         nonce: u64,
         code_hash: Option<&PyBytes>,
-        // TODO: Figure out what the best way to take in
-        // bytes from pyhouu
         code: Option<&PyBytes>,
     ) -> PyResult<Self> {
         let code_hash = code_hash
@@ -91,43 +104,27 @@ impl From<Env> for revm::Env {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct TxEnv(revm::TxEnv);
 
 #[pymethods]
 impl TxEnv {
     #[new]
-    fn new() -> Self {
-        TxEnv(revm::TxEnv::default())
-    }
-
-    #[setter]
-    fn caller(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<()> {
-        _self.0.caller = addr(address)?;
-
-        Ok(())
-    }
-
-    #[setter]
-    fn to(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<()> {
-        _self.0.transact_to = TransactTo::Call(
-            address
-                .parse::<primitive_types::H160>()
-                .map_err(|err| pyo3::exceptions::PyTypeError::new_err(err.to_string()))?,
-        );
-        Ok(())
-    }
-
-    #[setter]
-    fn value(mut _self: PyRefMut<'_, Self>, value: BigUint) -> PyResult<()> {
-        _self.0.value = u256(value);
-        Ok(())
-    }
-}
-
-impl From<revm::TxEnv> for TxEnv {
-    fn from(env: revm::TxEnv) -> Self {
-        TxEnv(env)
+    fn new(
+        caller: Option<&str>,
+        gas_limit: u64,
+        gas_price: BigUint,
+        gas_priority_fee: Option<BigUint>,
+        to: Option<&str>,
+        value: BigUint,
+        data: Vec<u8>,
+        chain_id: Option<u64>,
+        nonce: Option<u64>,
+    ) -> PyResult<Self> {
+        Ok(TxEnv(revm::TxEnv {
+            caller: addr(caller.unwrap_or_default())?,
+            ..Default::default()
+        }))
     }
 }
 
@@ -138,20 +135,32 @@ impl From<TxEnv> for revm::TxEnv {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BlockEnv(revm::BlockEnv);
 
 #[pymethods]
 impl BlockEnv {
     #[new]
-    fn new() -> Self {
-        BlockEnv(revm::BlockEnv::default())
+    fn new(
+        number: Option<BigUint>,
+        coinbase: Option<&str>,
+        timestamp: Option<BigUint>,
+        difficulty: Option<BigUint>,
+        basefee: Option<BigUint>,
+        gas_limit: Option<BigUint>,
+    ) -> PyResult<Self> {
+        Ok(BlockEnv(revm::BlockEnv {
+            number: u256(number.unwrap_or_default()),
+            coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
+            timestamp: u256(timestamp.unwrap_or_default()),
+            difficulty: u256(difficulty.unwrap_or_default()),
+            basefee: u256(basefee.unwrap_or_default()),
+            gas_limit: u256(gas_limit.unwrap_or_else(|| u64::MAX.into())),
+        }))
     }
-}
 
-impl From<revm::BlockEnv> for BlockEnv {
-    fn from(env: revm::BlockEnv) -> Self {
-        BlockEnv(env)
+    fn __str__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
     }
 }
 

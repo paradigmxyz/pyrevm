@@ -8,7 +8,8 @@ address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 def test_revm():
     evm = EVM();
     cfg = CfgEnv();
-    block = BlockEnv(gas_limit = 9999999);
+    block = BlockEnv();
+    print("BLOCK", block)
 
     info = AccountInfo(
         balance = 1000000000000000000000000000000000000
