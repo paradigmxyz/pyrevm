@@ -14,3 +14,4 @@ pyo3 = { version = "0.16.5", features = ["extension-module", "num-bigint"] }
 revm = "2.1.0"
 num-bigint = "*"
 bytes = "1.2.1"
+foundry-evm = { git = "https://github.com/foundry-rs/foundry" }
