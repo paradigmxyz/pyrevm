@@ -5,10 +5,11 @@
 ![py](https://github.com/gakonst/pyrevm/workflows/py/badge.svg)
 ![rust](https://github.com/gakonst/pyrevm/workflows/rust/badge.svg)
 
-## Installation
+## Quickstart
 
 ```
-pip install pyrevm
+make install
+make test
 ```
 
 ## Example Usage
