@@ -1,0 +1,24 @@
+[project]
+name = "pyrevm"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[tool.poetry]
+name = "pyrevm"
+version = "0.1.0"
+description = ""
+authors = ["Georgios Konstantopoulos <me@gakonst.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+maturin = "^0.13.5"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["maturin>=0.13,<0.14"]
+build-backend = "maturin"
