@@ -47,7 +47,7 @@ class AccountInfo:
     def code_hash(self: "AccountInfo") -> list[int]: ...
     def __new__(
         cls: Type["AccountInfo"],
-        nonce: int,
+        nonce: int = 0,
         code_hash: Optional[bytes] = None,
         code: Optional[bytes] = None,
     ) -> "AccountInfo": ...
@@ -76,6 +76,13 @@ class EVM:
     def basic(self: "EVM", address: str) -> Optional[AccountInfo]: ...
     def insert_account_info(self: "EVM", address: str, info: AccountInfo) -> None: ...
     def call_raw_committing(
+        self: "EVM",
+        caller: str,
+        to: str,
+        value: Optional[int] = None,
+        data: Optional[list[int]] = None,
+    ) -> None: ...
+    def call_raw(
         self: "EVM",
         caller: str,
         to: str,
