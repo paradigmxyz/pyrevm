@@ -111,10 +111,35 @@ impl EVM {
             .map_err(pyerr)?;
 
         if res.reverted {
-            return Err(PyRuntimeError::new_err(format!("{:?}", res.exit_reason)));
+            return Err(pyerr(res.exit_reason));
         }
 
         // TODO: Return the traces back to the user.
+        dbg!(&res.traces);
+        Ok(())
+    }
+
+    fn call_raw(
+        mut _self: PyRefMut<'_, Self>,
+        caller: &str,
+        to: &str,
+        value: Option<BigUint>,
+        data: Option<Vec<u8>>,
+    ) -> PyResult<()> {
+        let res = _self
+            .0
+            .call_raw(
+                addr(caller)?,
+                addr(to)?,
+                data.unwrap_or_default().into(),
+                value.map(u256).unwrap_or_default(),
+            )
+            .map_err(pyerr)?;
+
+        if res.reverted {
+            return Err(pyerr(res.exit_reason));
+        }
+
         dbg!(&res.traces);
         Ok(())
     }
