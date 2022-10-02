@@ -10,3 +10,14 @@ pub struct EvmOpts {
     pub gas_limit: u64,
     pub tracing: bool,
 }
+
+#[pymethods]
+impl EvmOpts {
+    #[new]
+    fn new(env: Option<Env>, fork_url: Option<String>) -> Self {
+        Self {
+            fork_url,
+            ..Default::default()
+        }
+    }
+}

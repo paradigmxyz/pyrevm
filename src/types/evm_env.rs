@@ -34,12 +34,12 @@ impl From<Env> for revm::Env {
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
-pub struct TxEnv(revm::TxEnv);
+pub struct TxEnv(pub revm::TxEnv);
 
 #[pymethods]
 impl TxEnv {
     #[new]
-    fn new(
+    pub fn new(
         caller: Option<&str>,
         gas_limit: Option<u64>,
         gas_price: Option<BigUint>,

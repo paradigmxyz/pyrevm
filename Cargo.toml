@@ -15,3 +15,5 @@ revm = "2.1.0"
 num-bigint = "*"
 bytes = "1.2.1"
 foundry-evm = { git = "https://github.com/foundry-rs/foundry" }
+hex = "0.4.3"
+eyre = "0.6.8"

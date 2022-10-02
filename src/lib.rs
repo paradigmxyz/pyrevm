@@ -21,7 +21,9 @@ mod utils;
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<EVM>()?;
 
+    // Types
     m.add_class::<AccountInfo>()?;
+    m.add_class::<EvmOpts>()?;
 
     m.add_class::<Env>()?;
     m.add_class::<CfgEnv>()?;
