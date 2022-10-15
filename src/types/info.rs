@@ -1,8 +1,7 @@
-use crate::utils::{u256, uint};
-use num_bigint::BigUint;
 use primitive_types::H256;
 use pyo3::{prelude::*, types::PyBytes};
 use revm::Bytecode;
+use ruint::aliases::U256;
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
@@ -12,8 +11,8 @@ pub struct AccountInfo(revm::AccountInfo);
 impl AccountInfo {
     // TODO: Is there a way to avoid all this boilerplate somehow?
     #[getter]
-    fn balance(_self: PyRef<'_, Self>) -> BigUint {
-        uint(_self.0.balance)
+    fn balance(_self: PyRef<'_, Self>) -> U256 {
+        _self.0.balance.into()
     }
     #[getter]
     fn nonce(_self: PyRef<'_, Self>) -> u64 {
@@ -36,7 +35,7 @@ impl AccountInfo {
     #[new]
     #[args(nonce = "0")]
     fn new(
-        balance: Option<BigUint>,
+        balance: Option<U256>,
         nonce: u64,
         code_hash: Option<&PyBytes>,
         code: Option<&PyBytes>,
@@ -55,7 +54,7 @@ impl AccountInfo {
             .map(|bytes| Bytecode::new_raw(bytes.into()));
 
         Ok(AccountInfo(revm::AccountInfo {
-            balance: balance.map(u256).unwrap_or_default(),
+            balance: balance.unwrap_or_default().into(),
             code_hash,
             code,
             nonce,
