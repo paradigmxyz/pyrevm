@@ -10,10 +10,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 primitive-types = "0.11.0"
-pyo3 = { version = "0.16.5", features = ["extension-module", "num-bigint"] }
+pyo3 = { version = "0.17", features = ["extension-module"] }
 revm = "2.1.0"
-num-bigint = "*"
 bytes = "1.2.1"
 foundry-evm = { git = "https://github.com/foundry-rs/foundry" }
 hex = "0.4.3"
 eyre = "0.6.8"
+ruint = { version = "1.4.1", features = ["primitive-types", "pyo3"] }

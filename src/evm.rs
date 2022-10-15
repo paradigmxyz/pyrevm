@@ -2,13 +2,13 @@ use std::fmt::Debug;
 
 use crate::{
     types::{AccountInfo, Env},
-    utils::{addr, u256},
+    utils::addr,
 };
 use foundry_evm::executor::{fork::CreateFork, Executor};
-use num_bigint::BigUint;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use revm::db::DatabaseRef;
+use ruint::aliases::U256;
 
 use foundry_evm::executor::{opts::EvmOpts, Backend, ExecutorBuilder};
 
@@ -94,7 +94,7 @@ impl EVM {
         mut _self: PyRefMut<'_, Self>,
         caller: &str,
         to: &str,
-        value: Option<BigUint>,
+        value: Option<U256>,
         data: Option<Vec<u8>>,
     ) -> PyResult<()> {
         let res = _self
@@ -106,7 +106,7 @@ impl EVM {
                 addr(caller)?,
                 addr(to)?,
                 data.unwrap_or_default().into(),
-                value.map(u256).unwrap_or_default(),
+                value.unwrap_or_default().into(),
             )
             .map_err(pyerr)?;
 
@@ -123,7 +123,7 @@ impl EVM {
         mut _self: PyRefMut<'_, Self>,
         caller: &str,
         to: &str,
-        value: Option<BigUint>,
+        value: Option<U256>,
         data: Option<Vec<u8>>,
     ) -> PyResult<()> {
         let res = _self
@@ -132,7 +132,7 @@ impl EVM {
                 addr(caller)?,
                 addr(to)?,
                 data.unwrap_or_default().into(),
-                value.map(u256).unwrap_or_default(),
+                value.unwrap_or_default().into(),
             )
             .map_err(pyerr)?;
 

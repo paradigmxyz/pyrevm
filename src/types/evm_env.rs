@@ -1,8 +1,7 @@
-use crate::utils::{addr, u256};
-use num_bigint::BigUint;
-use primitive_types::U256;
+use crate::utils::addr;
 use pyo3::prelude::*;
 use revm::TransactTo;
+use ruint::aliases::U256;
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -42,10 +41,10 @@ impl TxEnv {
     pub fn new(
         caller: Option<&str>,
         gas_limit: Option<u64>,
-        gas_price: Option<BigUint>,
-        gas_priority_fee: Option<BigUint>,
+        gas_price: Option<U256>,
+        gas_priority_fee: Option<U256>,
         to: Option<&str>,
-        value: Option<BigUint>,
+        value: Option<U256>,
         data: Option<Vec<u8>>,
         chain_id: Option<u64>,
         nonce: Option<u64>,
@@ -53,14 +52,14 @@ impl TxEnv {
         Ok(TxEnv(revm::TxEnv {
             caller: addr(caller.unwrap_or_default())?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
-            gas_price: u256(gas_price.unwrap_or_default()),
-            gas_priority_fee: gas_priority_fee.map(u256),
+            gas_price: gas_price.unwrap_or_default().into(),
+            gas_priority_fee: gas_priority_fee.map(Into::into),
             transact_to: match to {
                 Some(inner) => TransactTo::Call(addr(inner)?),
                 // TODO: Figure out how to integrate CREATE2 here
                 None => TransactTo::Create(revm::CreateScheme::Create),
             },
-            value: u256(value.unwrap_or_default()),
+            value: value.unwrap_or_default().into(),
             data: data.unwrap_or_default().into(),
             chain_id,
             nonce,
@@ -84,24 +83,24 @@ pub struct BlockEnv(revm::BlockEnv);
 impl BlockEnv {
     #[new]
     fn new(
-        number: Option<BigUint>,
+        number: Option<U256>,
         coinbase: Option<&str>,
-        timestamp: Option<BigUint>,
-        difficulty: Option<BigUint>,
-        basefee: Option<BigUint>,
-        gas_limit: Option<BigUint>,
+        timestamp: Option<U256>,
+        difficulty: Option<U256>,
+        basefee: Option<U256>,
+        gas_limit: Option<U256>,
     ) -> PyResult<Self> {
         Ok(BlockEnv(revm::BlockEnv {
-            number: u256(number.unwrap_or_default()),
+            number: number.unwrap_or_default().into(),
             coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
             timestamp: if let Some(timestamp) = timestamp {
-                u256(timestamp)
+                timestamp.into()
             } else {
-                U256::from(1)
+                1.into()
             },
-            difficulty: u256(difficulty.unwrap_or_default()),
-            basefee: u256(basefee.unwrap_or_default()),
-            gas_limit: u256(gas_limit.unwrap_or_else(|| u64::MAX.into())),
+            difficulty: difficulty.unwrap_or_default().into(),
+            basefee: basefee.unwrap_or_default().into(),
+            gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)).into(),
         }))
     }
 
