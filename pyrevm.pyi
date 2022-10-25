@@ -48,8 +48,8 @@ class AccountInfo:
     def __new__(
         cls: Type["AccountInfo"],
         nonce: int = 0,
-        code_hash: Optional[bytes] = None,
-        code: Optional[bytes] = None,
+        code_hash: Optional[list[int]] = None,
+        code: Optional[list[int]] = None,
     ) -> "AccountInfo": ...
 
 class EvmOpts:
@@ -70,7 +70,7 @@ class EVM:
         env: Optional[Env] = None,
         fork_url: Optional[str] = None,
         fork_block_number: Optional[int] = None,
-        gas_limit: int = 18446744073709551615,
+        gas_limit: int = 2**64 - 1,
         tracing: bool = False,
     ) -> "EVM": ...
     def basic(self: "EVM", address: str) -> Optional[AccountInfo]: ...
@@ -89,3 +89,11 @@ class EVM:
         value: Optional[int] = None,
         data: Optional[list[int]] = None,
     ) -> None: ...
+    def deploy(
+        self: "EVM",
+        deployer: str,
+        code: list[int],
+        value: Optional[int] = None,
+    ) -> str: ...
+    def get_balance(self: "EVM", address: str) -> int: ...
+    def set_balance(self: "EVM", address: str, balance: int) -> None: ...
