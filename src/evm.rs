@@ -92,10 +92,7 @@ impl EVM {
 
     /// Set the balance of a given address.
     fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
-        let res = _self.0.set_balance(addr(address)?, balance.into());
-        if res.is_err() {
-            return Err(pyerr(res.err().unwrap()));
-        }
+        _self.0.set_balance(addr(address)?, balance.into()).map_err(pyerr)?;
         Ok(())
     }
 
