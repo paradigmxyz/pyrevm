@@ -100,8 +100,8 @@ impl EVM {
     }
 
     /// Retrieve the balance of a given address.
-    fn get_balance(&self, address: &str) -> PyResult<U256> {
-        let balance = self.0.get_balance(addr(address)?).map_err(pyerr)?;
+    fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
+        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
         Ok(balance.into())
     }
 
@@ -135,7 +135,7 @@ impl EVM {
     }
 
     fn call_raw(
-        mut _self: PyRefMut<'_, Self>,
+        _self: PyRef<'_, Self>,
         caller: &str,
         to: &str,
         value: Option<U256>,
