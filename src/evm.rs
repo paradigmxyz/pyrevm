@@ -90,6 +90,18 @@ impl EVM {
         Ok(())
     }
 
+    /// Set the balance of a given address.
+    fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
+        _self.0.set_balance(addr(address)?, balance.into()).map_err(pyerr)?;
+        Ok(())
+    }
+
+    /// Retrieve the balance of a given address.
+    fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
+        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
+        Ok(balance.into())
+    }
+
     fn call_raw_committing(
         mut _self: PyRefMut<'_, Self>,
         caller: &str,
@@ -120,7 +132,7 @@ impl EVM {
     }
 
     fn call_raw(
-        mut _self: PyRefMut<'_, Self>,
+        _self: PyRef<'_, Self>,
         caller: &str,
         to: &str,
         value: Option<U256>,
@@ -142,5 +154,27 @@ impl EVM {
 
         dbg!(&res.traces);
         Ok(())
+    }
+
+    /// Deploy a contract with the given code.
+    fn deploy(
+        mut _self: PyRefMut<'_, Self>,
+        deployer: &str,
+        code: Option<Vec<u8>>,
+        value: Option<U256>,
+        _abi: Option<&str>,
+    ) -> PyResult<String> {
+        let res = _self
+            .0
+            .deploy(
+                addr(deployer)?,
+                code.unwrap_or_default().into(),
+                value.unwrap_or_default().into(),
+                None,
+            )
+            .map_err(pyerr)?;
+
+        dbg!(&res.traces);
+        Ok(format!("{:?}", res.address))
     }
 }
