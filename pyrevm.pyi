@@ -81,14 +81,14 @@ class EVM:
         to: str,
         value: Optional[int] = None,
         data: Optional[list[int]] = None,
-    ) -> None: ...
+    ) -> str: ...
     def call_raw(
         self: "EVM",
         caller: str,
         to: str,
         value: Optional[int] = None,
         data: Optional[list[int]] = None,
-    ) -> None: ...
+    ) -> str: ...
     def deploy(
         self: "EVM",
         deployer: str,
