@@ -1,17 +1,24 @@
-use crate::utils::addr;
 use pyo3::prelude::*;
-use revm::TransactTo;
-use ruint::aliases::U256;
+use revm::{
+    precompile::B256,
+    primitives::{
+        BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
+        TxEnv as RevmTxEnv, U256,
+    },
+};
+
+use crate::utils::addr;
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
-pub struct Env(revm::Env);
+
+pub struct Env(RevmEnv);
 
 #[pymethods]
 impl Env {
     #[new]
     fn new(cfg: Option<CfgEnv>, block: Option<BlockEnv>, tx: Option<TxEnv>) -> Self {
-        Env(revm::Env {
+        Env(RevmEnv {
             cfg: cfg.unwrap_or_default().into(),
             block: block.unwrap_or_default().into(),
             tx: tx.unwrap_or_default().into(),
@@ -19,13 +26,13 @@ impl Env {
     }
 }
 
-impl From<revm::Env> for Env {
-    fn from(env: revm::Env) -> Self {
+impl From<RevmEnv> for Env {
+    fn from(env: RevmEnv) -> Self {
         Env(env)
     }
 }
 
-impl From<Env> for revm::Env {
+impl From<Env> for RevmEnv {
     fn from(env: Env) -> Self {
         env.0
     }
@@ -33,7 +40,7 @@ impl From<Env> for revm::Env {
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
-pub struct TxEnv(pub revm::TxEnv);
+pub struct TxEnv(pub RevmTxEnv);
 
 #[pymethods]
 impl TxEnv {
@@ -49,7 +56,7 @@ impl TxEnv {
         chain_id: Option<u64>,
         nonce: Option<u64>,
     ) -> PyResult<Self> {
-        Ok(TxEnv(revm::TxEnv {
+        Ok(TxEnv(RevmTxEnv {
             caller: addr(caller.unwrap_or_default())?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
             gas_price: gas_price.unwrap_or_default().into(),
@@ -57,7 +64,7 @@ impl TxEnv {
             transact_to: match to {
                 Some(inner) => TransactTo::Call(addr(inner)?),
                 // TODO: Figure out how to integrate CREATE2 here
-                None => TransactTo::Create(revm::CreateScheme::Create),
+                None => TransactTo::Create(CreateScheme::Create),
             },
             value: value.unwrap_or_default().into(),
             data: data.unwrap_or_default().into(),
@@ -69,7 +76,7 @@ impl TxEnv {
     }
 }
 
-impl From<TxEnv> for revm::TxEnv {
+impl From<TxEnv> for RevmTxEnv {
     fn from(env: TxEnv) -> Self {
         env.0
     }
@@ -77,7 +84,7 @@ impl From<TxEnv> for revm::TxEnv {
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
-pub struct BlockEnv(revm::BlockEnv);
+pub struct BlockEnv(RevmBlockEnv);
 
 #[pymethods]
 impl BlockEnv {
@@ -87,18 +94,16 @@ impl BlockEnv {
         coinbase: Option<&str>,
         timestamp: Option<U256>,
         difficulty: Option<U256>,
+        prevrandao: Option<B256>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
     ) -> PyResult<Self> {
-        Ok(BlockEnv(revm::BlockEnv {
+        Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default().into(),
             coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
-            timestamp: if let Some(timestamp) = timestamp {
-                timestamp.into()
-            } else {
-                1.into()
-            },
+            timestamp: timestamp.unwrap_or(U256::from(1)).into(),
             difficulty: difficulty.unwrap_or_default().into(),
+            prevrandao: prevrandao.map(Into::into),
             basefee: basefee.unwrap_or_default().into(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)).into(),
         }))
@@ -109,7 +114,7 @@ impl BlockEnv {
     }
 }
 
-impl From<BlockEnv> for revm::BlockEnv {
+impl From<BlockEnv> for RevmBlockEnv {
     fn from(env: BlockEnv) -> Self {
         env.0
     }
@@ -117,13 +122,13 @@ impl From<BlockEnv> for revm::BlockEnv {
 
 #[pyclass]
 #[derive(Default, Clone, Debug)]
-pub struct CfgEnv(revm::CfgEnv);
+pub struct CfgEnv(RevmCfgEnv);
 
 #[pymethods]
 impl CfgEnv {
     #[new]
     fn new() -> Self {
-        CfgEnv(revm::CfgEnv::default())
+        CfgEnv(RevmCfgEnv::default())
     }
 
     fn __str__(&self) -> PyResult<String> {
@@ -131,7 +136,7 @@ impl CfgEnv {
     }
 }
 
-impl From<CfgEnv> for revm::CfgEnv {
+impl From<CfgEnv> for RevmCfgEnv {
     fn from(env: CfgEnv) -> Self {
         env.0
     }

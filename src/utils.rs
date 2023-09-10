@@ -1,8 +1,9 @@
-use primitive_types::{H160, H256};
+use primitive_types::H256;
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use revm::primitives::Address;
 
-pub fn addr(addr: &str) -> Result<H160, PyErr> {
-    addr.parse::<H160>()
+pub fn addr(addr: &str) -> Result<Address, PyErr> {
+    addr.parse::<Address>()
         .map_err(|err| PyTypeError::new_err(err.to_string()))
 }
 
