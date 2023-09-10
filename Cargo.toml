@@ -9,11 +9,16 @@ name = "pyrevm"
 crate-type = ["cdylib"]
 
 [dependencies]
-primitive-types = "0.11.0"
-pyo3 = { version = "0.17", features = ["extension-module"] }
-revm = "2.1.0"
-bytes = "1.2.1"
+primitive-types = "0.12"
+pyo3 = { version = "0.19", features = ["extension-module"] }
+revm = "3"
+bytes = "1.5"
 foundry-evm = { git = "https://github.com/foundry-rs/foundry" }
-hex = "0.4.3"
-eyre = "0.6.8"
-ruint = { version = "1.4.1", features = ["primitive-types", "pyo3"] }
+hex = "0.4"
+eyre = "0.6"
+ruint = { version = "1.10", features = ["primitive-types", "pyo3"] }
+reqwest = { version = "0.11.20", features = ["rustls"] }
+
+[patch.crates-io]
+revm = { git = "https://github.com/bluealloy/revm", rev = "6b55b9c0ab264c000e087c2f54f2d8dc24b869aa" }
+revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "6b55b9c0ab264c000e087c2f54f2d8dc24b869aa" }
