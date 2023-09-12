@@ -1,11 +1,9 @@
-use primitive_types::H256;
 use pyo3::{prelude::*, types::PyBytes};
-use revm::Bytecode;
-use ruint::aliases::U256;
+use revm::primitives::{AccountInfo as RevmAccountInfo, Bytecode, Hash, KECCAK_EMPTY, U256};
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
-pub struct AccountInfo(revm::AccountInfo);
+pub struct AccountInfo(RevmAccountInfo);
 
 #[pymethods]
 impl AccountInfo {
@@ -33,7 +31,7 @@ impl AccountInfo {
     }
 
     #[new]
-    #[args(nonce = "0")]
+    #[pyo3(signature = (balance=None, nonce=0, code_hash=None, code=None))]
     fn new(
         balance: Option<U256>,
         nonce: u64,
@@ -43,9 +41,9 @@ impl AccountInfo {
         let code_hash = code_hash
             .map(|bytes| {
                 let bytes = bytes.as_bytes();
-                H256::from_slice(bytes)
+                Hash::from_slice(bytes)
             })
-            .unwrap_or(revm::KECCAK_EMPTY);
+            .unwrap_or(KECCAK_EMPTY);
         let code = code
             .map(|bytes| {
                 let bytes = bytes.as_bytes();
@@ -53,7 +51,7 @@ impl AccountInfo {
             })
             .map(|bytes| Bytecode::new_raw(bytes.into()));
 
-        Ok(AccountInfo(revm::AccountInfo {
+        Ok(AccountInfo(RevmAccountInfo {
             balance: balance.unwrap_or_default().into(),
             code_hash,
             code,
@@ -66,13 +64,13 @@ impl AccountInfo {
     }
 }
 
-impl From<revm::AccountInfo> for AccountInfo {
-    fn from(env: revm::AccountInfo) -> Self {
+impl From<RevmAccountInfo> for AccountInfo {
+    fn from(env: RevmAccountInfo) -> Self {
         AccountInfo(env)
     }
 }
 
-impl From<AccountInfo> for revm::AccountInfo {
+impl From<AccountInfo> for RevmAccountInfo {
     fn from(env: AccountInfo) -> Self {
         env.0
     }

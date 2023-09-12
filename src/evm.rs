@@ -1,23 +1,24 @@
 use std::fmt::Debug;
 
+use foundry_evm::{
+    executor::{fork::CreateFork, opts::EvmOpts, Backend, Executor, ExecutorBuilder},
+    utils::RuntimeOrHandle,
+};
+use pyo3::exceptions::PyRuntimeError;
+use pyo3::prelude::*;
+use revm::{primitives::U256, Database};
+
 use crate::{
     types::{AccountInfo, Env},
     utils::addr,
 };
-use foundry_evm::executor::{fork::CreateFork, Executor};
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::prelude::*;
-use revm::db::DatabaseRef;
-use ruint::aliases::U256;
-
-use foundry_evm::executor::{opts::EvmOpts, Backend, ExecutorBuilder};
 
 #[pyclass]
 pub struct EVM(Executor);
 
 impl EVM {
     pub fn db(&self) -> &Backend {
-        self.0.backend()
+        &self.0.backend
     }
 }
 
@@ -28,7 +29,7 @@ fn pyerr<T: Debug>(err: T) -> pyo3::PyErr {
 #[pymethods]
 impl EVM {
     #[new]
-    #[args(gas_limit = 18446744073709551615, tracing = false)]
+    #[pyo3(signature = (env=None, fork_url=None, fork_block_number=None, gas_limit=18446744073709551615, tracing=false))]
     fn new(
         env: Option<Env>,
         fork_url: Option<String>,
@@ -43,7 +44,9 @@ impl EVM {
         };
 
         let fork_opts = if let Some(fork_url) = fork_url {
-            let env = evm_opts.evm_env_blocking().map_err(pyerr)?;
+            let env = RuntimeOrHandle::new()
+                .block_on(evm_opts.evm_env())
+                .map_err(pyerr)?;
             Some(CreateFork {
                 url: fork_url,
                 enable_caching: true,
@@ -54,25 +57,20 @@ impl EVM {
             None
         };
 
-        let db = Backend::spawn(fork_opts);
+        let db = RuntimeOrHandle::new().block_on(Backend::spawn(fork_opts));
 
-        let mut builder = ExecutorBuilder::default()
-            .with_gas_limit(gas_limit.into())
-            .set_tracing(tracing);
-
-        if let Some(env) = env {
-            builder = builder.with_config(env.into());
-        }
-
-        let executor = builder.build(db);
+        let executor = ExecutorBuilder::default()
+            .gas_limit(gas_limit.into())
+            .inspectors(|stack| stack.trace(tracing))
+            .build(env.unwrap_or_default().into(), db);
 
         Ok(EVM(executor))
     }
 
     /// Inserts the provided account information in the database at
     /// the specified address.
-    fn basic(_self: PyRef<'_, Self>, address: &str) -> PyResult<Option<AccountInfo>> {
-        let db = _self.0.backend();
+    fn basic(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<Option<AccountInfo>> {
+        let db = &mut _self.0.backend;
         let acc = db.basic(addr(address)?).map_err(pyerr)?;
         Ok(acc.map(Into::into))
     }
@@ -84,21 +82,24 @@ impl EVM {
         address: &str,
         info: AccountInfo,
     ) -> PyResult<()> {
-        let db = _self.0.backend_mut();
-        db.insert_account_info(addr(address)?, info.into());
+        let db = &mut _self.0.backend;
+        db.insert_account_info(addr(address)?.into(), info.into());
 
         Ok(())
     }
 
     /// Set the balance of a given address.
     fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
-        _self.0.set_balance(addr(address)?, balance.into()).map_err(pyerr)?;
+        _self
+            .0
+            .set_balance(addr(address)?.into(), balance.into())
+            .map_err(pyerr)?;
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
-        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
+        let balance = _self.0.get_balance(addr(address)?.into()).map_err(pyerr)?;
         Ok(balance.into())
     }
 
@@ -115,8 +116,8 @@ impl EVM {
                 // TODO: The constant type conversions when
                 // crossing the boundary is annoying. Can we pass it
                 // a type that's already an `Address`?
-                addr(caller)?,
-                addr(to)?,
+                addr(caller)?.into(),
+                addr(to)?.into(),
                 data.unwrap_or_default().into(),
                 value.unwrap_or_default().into(),
             )
@@ -141,8 +142,8 @@ impl EVM {
         let res = _self
             .0
             .call_raw(
-                addr(caller)?,
-                addr(to)?,
+                addr(caller)?.into(),
+                addr(to)?.into(),
                 data.unwrap_or_default().into(),
                 value.unwrap_or_default().into(),
             )
@@ -167,7 +168,7 @@ impl EVM {
         let res = _self
             .0
             .deploy(
-                addr(deployer)?,
+                addr(deployer)?.into(),
                 code.unwrap_or_default().into(),
                 value.unwrap_or_default().into(),
                 None,

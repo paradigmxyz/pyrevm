@@ -16,6 +16,7 @@ impl EvmOpts {
     #[new]
     fn new(env: Option<Env>, fork_url: Option<String>) -> Self {
         Self {
+            env: env.unwrap_or_default(),
             fork_url,
             ..Default::default()
         }
