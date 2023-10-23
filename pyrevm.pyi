@@ -10,6 +10,7 @@ class BlockEnv:
         coinbase: Optional[str] = None,
         timestamp: Optional[int] = None,
         difficulty: Optional[int] = None,
+        prevrandao: Optional[bytes] = None,
         basefee: Optional[int] = None,
         gas_limit: Optional[int] = None,
     ) -> "BlockEnv": ...

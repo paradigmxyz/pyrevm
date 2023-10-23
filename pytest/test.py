@@ -1,7 +1,6 @@
 import os.path
 
-import pytest
-from pyrevm import *
+from pyrevm import EVM, Env, BlockEnv, AccountInfo
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
@@ -34,7 +33,7 @@ def test_revm():
         # can set tracing to true/false
         tracing=True,
         # can configure the environment
-        env=Env(block=BlockEnv(timestamp=100)),
+        env=Env(block=BlockEnv(timestamp=100, prevrandao=bytes([0] * 32))),
     )
 
     vb_before = evm.basic(address)
