@@ -1,11 +1,9 @@
-from typing import Final
-
 import cProfile
 import pathlib
 import pstats
+from typing import Final
 
 import pyrevm
-
 
 CONTRACT_DATA_FILE_PATH: Final[pathlib.Path] = (
     pathlib.Path(__file__).absolute().parent / "./snailtracer.evm"

@@ -17,9 +17,13 @@ def load_contract_bin(contract_name: str) -> bytes:
     return bytes.fromhex(hexstring)
 
 
-def encode_uint(num: int):
+def encode_uint(num: int) -> str:
     encoded = hex(num)[2:]
     return ("0" * (64 - len(encoded))) + encoded
+
+
+def encode_address(address: str) -> str:
+    return f'{"0" * 24}{address[2:]}'
 
 
 def test_revm():
@@ -97,7 +101,7 @@ def test_call_raw():
         ),
     )
 
-    assert int(result, 16) == 256
+    assert int.from_bytes(result, "big") == 256
 
 
 def test_call_committing():
@@ -115,4 +119,28 @@ def test_call_committing():
         ),
     )
 
-    assert int(result, 16) == 171
+    assert int.from_bytes(result, "big") == 171
+
+
+def test_call_empty_result():
+    evm = EVM()
+    evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
+
+    evm.set_balance(address2, 10000)
+
+    deposit = evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        value=10000,
+        data=bytes.fromhex("d0e30db0"),
+    )
+
+    assert deposit == []
+
+    balance = evm.call_raw(
+        caller=address2,
+        to=address,
+        data=bytes.fromhex("70a08231" + encode_address(address2)),
+    )
+
+    assert int.from_bytes(balance, "big") == 10000
