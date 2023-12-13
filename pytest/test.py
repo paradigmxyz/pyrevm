@@ -1,9 +1,28 @@
-from pyrevm import EVM, Env, BlockEnv
+import os.path
+
+from pyrevm import EVM, Env, BlockEnv, AccountInfo
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
 fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+
+
+def load_contract_bin(contract_name: str) -> bytes:
+    with open(
+        f"{os.path.dirname(__file__)}/contracts/{contract_name}", "r"
+    ) as readfile:
+        hexstring = readfile.readline()
+    return bytes.fromhex(hexstring)
+
+
+def encode_uint(num: int) -> str:
+    encoded = hex(num)[2:]
+    return ("0" * (64 - len(encoded))) + encoded
+
+
+def encode_address(address: str) -> str:
+    return f'{"0" * 24}{address[2:]}'
 
 
 def test_revm():
@@ -64,3 +83,63 @@ def test_balances():
 
     assert evm.get_balance(address) == AMT
     assert evm.basic(address).balance == AMT
+
+
+def test_call_raw():
+    evm = EVM()
+    evm.insert_account_info(
+        address, AccountInfo(code=load_contract_bin("full_math.bin"))
+    )
+
+    # mulDiv() -> 64 * 8 / 2
+    result = evm.call_raw(
+        caller=address2,
+        to=address,
+        data=bytes.fromhex(
+            f"aa9a0912{encode_uint(64)}{encode_uint(8)}{encode_uint(2)}"
+        ),
+    )
+
+    assert int.from_bytes(result, "big") == 256
+
+
+def test_call_committing():
+    evm = EVM()
+    evm.insert_account_info(
+        address, AccountInfo(code=load_contract_bin("full_math.bin"))
+    )
+
+    # mulDivRoundingUp() -> 64 * 8 / 3
+    result = evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        data=bytes.fromhex(
+            f"0af8b27f{encode_uint(64)}{encode_uint(8)}{encode_uint(3)}"
+        ),
+    )
+
+    assert int.from_bytes(result, "big") == 171
+
+
+def test_call_empty_result():
+    evm = EVM()
+    evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
+
+    evm.set_balance(address2, 10000)
+
+    deposit = evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        value=10000,
+        data=bytes.fromhex("d0e30db0"),
+    )
+
+    assert deposit == []
+
+    balance = evm.call_raw(
+        caller=address2,
+        to=address,
+        data=bytes.fromhex("70a08231" + encode_address(address2)),
+    )
+
+    assert int.from_bytes(balance, "big") == 10000
