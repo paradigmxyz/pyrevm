@@ -84,7 +84,7 @@ impl EVM {
         info: AccountInfo,
     ) -> PyResult<()> {
         let db = &mut _self.0.backend;
-        db.insert_account_info(addr(address)?.into(), info.into());
+        db.insert_account_info(addr(address)?, info.into());
 
         Ok(())
     }
@@ -93,15 +93,15 @@ impl EVM {
     fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
         _self
             .0
-            .set_balance(addr(address)?.into(), balance.into())
+            .set_balance(addr(address)?, balance)
             .map_err(pyerr)?;
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
-        let balance = _self.0.get_balance(addr(address)?.into()).map_err(pyerr)?;
-        Ok(balance.into())
+        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
+        Ok(balance)
     }
 
     fn call_raw_committing(
@@ -117,10 +117,10 @@ impl EVM {
                 // TODO: The constant type conversions when
                 // crossing the boundary is annoying. Can we pass it
                 // a type that's already an `Address`?
-                addr(caller)?.into(),
-                addr(to)?.into(),
+                addr(caller)?,
+                addr(to)?,
                 data.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
             )
             .map_err(pyerr)?;
 
@@ -142,10 +142,10 @@ impl EVM {
         let res = _self
             .0
             .call_raw(
-                addr(caller)?.into(),
-                addr(to)?.into(),
+                addr(caller)?,
+                addr(to)?,
                 data.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
             )
             .map_err(pyerr)?;
 
@@ -167,9 +167,9 @@ impl EVM {
         let res = _self
             .0
             .deploy(
-                addr(deployer)?.into(),
+                addr(deployer)?,
                 code.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
                 None,
             )
             .map_err(pyerr)?;

@@ -55,14 +55,14 @@ impl TxEnv {
         Ok(TxEnv(RevmTxEnv {
             caller: addr(caller.unwrap_or_default())?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
-            gas_price: gas_price.unwrap_or_default().into(),
+            gas_price: gas_price.unwrap_or_default(),
             gas_priority_fee: gas_priority_fee.map(Into::into),
             transact_to: match to {
                 Some(inner) => TransactTo::Call(addr(inner)?),
                 // TODO: Figure out how to integrate CREATE2 here
                 None => TransactTo::Create(CreateScheme::Create),
             },
-            value: value.unwrap_or_default().into(),
+            value: value.unwrap_or_default(),
             data: data.unwrap_or_default().into(),
             chain_id,
             nonce,
@@ -95,13 +95,13 @@ impl BlockEnv {
         gas_limit: Option<U256>,
     ) -> PyResult<Self> {
         Ok(BlockEnv(RevmBlockEnv {
-            number: number.unwrap_or_default().into(),
+            number: number.unwrap_or_default(),
             coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
-            timestamp: timestamp.unwrap_or(U256::from(1)).into(),
-            difficulty: difficulty.unwrap_or_default().into(),
+            timestamp: timestamp.unwrap_or(U256::from(1)),
+            difficulty: difficulty.unwrap_or_default(),
             prevrandao: prevrandao.map(Into::into),
-            basefee: basefee.unwrap_or_default().into(),
-            gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)).into(),
+            basefee: basefee.unwrap_or_default(),
+            gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
             blob_excess_gas_and_price: None,
         }))
     }

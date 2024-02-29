@@ -10,7 +10,7 @@ impl AccountInfo {
     // TODO: Is there a way to avoid all this boilerplate somehow?
     #[getter]
     fn balance(_self: PyRef<'_, Self>) -> U256 {
-        _self.0.balance.into()
+        _self.0.balance
     }
     #[getter]
     fn nonce(_self: PyRef<'_, Self>) -> u64 {
@@ -49,7 +49,7 @@ impl AccountInfo {
             .map(|bytes| Bytecode::new_raw(bytes.into()));
 
         Ok(AccountInfo(RevmAccountInfo {
-            balance: balance.unwrap_or_default().into(),
+            balance: balance.unwrap_or_default(),
             code_hash,
             code,
             nonce,
