@@ -4,28 +4,24 @@ version = "0.2.0"
 edition = "2021"
 
 [lib]
-name = "pyrevm"
 crate-type = ["cdylib"]
 
 [dependencies]
-alloy-primitives = "0.6"
-eyre = "0.6"
-pyo3 = { version = "0.19", features = ["extension-module"] }
-reqwest = { version = "0.11.20", features = ["rustls"] }
-ruint = { version = "1.10", features = ["pyo3"] }
-
 foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "4a91072e326126cd852b9c43f577e98c8e13f84f" }
 revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze" }
+pyo3 = { version = "0.19", features = ["extension-module"] }
+
+ruint = { version = "1.10", features = ["pyo3"] }
 
 [patch.crates-io]
-ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
+# ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-core = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-contract = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-contract-abigen = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-providers = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-signers = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 ethers-middleware = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
-ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
+# ethers-solc = { git = "https://github.com/gakonst/ethers-rs", rev = "73e5de211c32a1f5777eb5194205bdb31f6a3502" }
 
 revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze" }
 revm-primitives = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze" }
