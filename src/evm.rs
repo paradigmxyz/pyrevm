@@ -128,7 +128,7 @@ impl EVM {
         }
 
         // TODO: Return the traces back to the user.
-        dbg!(&res.traces);
+        //dbg!(&res.traces);
         Ok(res.result.to_vec())
     }
 
@@ -153,7 +153,7 @@ impl EVM {
             return Err(pyerr(res.exit_reason));
         }
 
-        dbg!(&res.traces);
+        //dbg!(&res.traces);
         Ok(res.result.to_vec())
     }
 
@@ -175,7 +175,7 @@ impl EVM {
             )
             .map_err(pyerr)?;
 
-        dbg!(&res.traces);
+        //dbg!(&res.traces);
         Ok(format!("{:?}", res.address))
     }
 }
