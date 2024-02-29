@@ -1,13 +1,9 @@
-use pyo3::prelude::*;
-use revm::{
-    precompile::B256,
-    primitives::{
-        BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
-        TxEnv as RevmTxEnv, U256,
-    },
-};
-
 use crate::utils::addr;
+use pyo3::prelude::*;
+use revm::primitives::{
+    BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
+    TxEnv as RevmTxEnv, U256,
+};
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -94,7 +90,7 @@ impl BlockEnv {
         coinbase: Option<&str>,
         timestamp: Option<U256>,
         difficulty: Option<U256>,
-        prevrandao: Option<B256>,
+        prevrandao: Option<[u8; 32]>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
     ) -> PyResult<Self> {
@@ -106,6 +102,7 @@ impl BlockEnv {
             prevrandao: prevrandao.map(Into::into),
             basefee: basefee.unwrap_or_default().into(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)).into(),
+            blob_excess_gas_and_price: None,
         }))
     }
 

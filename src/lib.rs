@@ -1,10 +1,3 @@
-// Annoying false positive lint:
-// address: &str,
-//   |       ^ help: if you would like to reborrow, try removing `&*`: `&`
-//   |
-//   = note: `#[warn(clippy::borrow_deref_ref)]` on by default
-//
-#![allow(clippy::borrow_deref_ref)]
 #![allow(clippy::too_many_arguments)]
 
 use pyo3::prelude::*;

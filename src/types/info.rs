@@ -1,5 +1,5 @@
 use pyo3::{prelude::*, types::PyBytes};
-use revm::primitives::{AccountInfo as RevmAccountInfo, Bytecode, Hash, KECCAK_EMPTY, U256};
+use revm::primitives::{AccountInfo as RevmAccountInfo, Bytecode, KECCAK_EMPTY, U256};
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
@@ -27,7 +27,7 @@ impl AccountInfo {
     }
     #[getter]
     fn code_hash(_self: PyRef<'_, Self>) -> [u8; 32] {
-        _self.0.code_hash.to_fixed_bytes()
+        _self.0.code_hash.0
     }
 
     #[new]
@@ -39,10 +39,7 @@ impl AccountInfo {
         code: Option<&PyBytes>,
     ) -> PyResult<Self> {
         let code_hash = code_hash
-            .map(|bytes| {
-                let bytes = bytes.as_bytes();
-                Hash::from_slice(bytes)
-            })
+            .and_then(|bytes| bytes.as_bytes().try_into().ok())
             .unwrap_or(KECCAK_EMPTY);
         let code = code
             .map(|bytes| {
