@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::time::Instant;
 
 use foundry_evm::{
     executor::{fork::CreateFork, opts::EvmOpts, Backend, Executor, ExecutorBuilder},
@@ -138,7 +139,8 @@ impl EVM {
         to: &str,
         value: Option<U256>,
         data: Option<Vec<u8>>,
-    ) -> PyResult<Vec<u8>> {
+    ) -> PyResult<u64> /*return the timing result for now*/ {
+        let timer = Instant::now();
         let res = _self
             .0
             .call_raw(
@@ -150,11 +152,13 @@ impl EVM {
             .map_err(pyerr)?;
 
         if res.reverted {
-            return Err(pyerr(res.exit_reason));
+            //return Err(pyerr(res.exit_reason));
         }
 
         //dbg!(&res.traces);
-        Ok(res.result.to_vec())
+        //Ok(res.result.to_vec())
+        Ok(timer.elapsed().as_nanos().try_into().unwrap())
+
     }
 
     /// Deploy a contract with the given code.

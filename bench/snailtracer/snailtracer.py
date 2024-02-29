@@ -70,8 +70,15 @@ def _benchmark(
             p.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(10)
     else:
         with timeit(f"bench {num_runs} times", n=num_runs):
+            rust_elapsed_nanos = 0
             for _ in range(num_runs):
-                bench()
+                rust_elapsed_nanos += evm.call_raw(
+                    caller=caller_address,
+                    to=contract_address,
+                    #data=call_data,  # <- 400nanos
+                )
+            micros = rust_elapsed_nanos/1000 / num_runs
+            print(f"rust elapsed: {micros:.4f}us")
 
 
 def main() -> None:
@@ -84,8 +91,8 @@ def main() -> None:
         caller_address=CALLER_ADDRESS,
         contract_address=ZERO_ADDRESS,
         call_data=list(bytes.fromhex("30627b7c")),
-        num_runs=100_000,
-        warmup_runs=20,
+        num_runs=1_000_000,
+        warmup_runs=2000,
     )
 
 
