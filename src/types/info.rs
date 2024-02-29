@@ -38,16 +38,11 @@ impl AccountInfo {
         code_hash: Option<&PyBytes>,
         code: Option<&PyBytes>,
     ) -> PyResult<Self> {
+        let code = code.map(|bytes| Bytecode::new_raw(bytes.as_bytes().to_vec().into()));
         let code_hash = code_hash
-            .and_then(|bytes| bytes.as_bytes().try_into().ok())
+            .and_then(|hash| hash.as_bytes().try_into().ok())
+            .or_else(|| code.as_ref().map(|code| code.hash_slow()))
             .unwrap_or(KECCAK_EMPTY);
-        let code = code
-            .map(|bytes| {
-                let bytes = bytes.as_bytes();
-                bytes.to_vec()
-            })
-            .map(|bytes| Bytecode::new_raw(bytes.into()));
-
         Ok(AccountInfo(RevmAccountInfo {
             balance: balance.unwrap_or_default(),
             code_hash,
