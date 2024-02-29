@@ -1,4 +1,4 @@
-use crate::utils::addr;
+use crate::utils::{addr, addr_or_zero};
 use pyo3::prelude::*;
 use revm::primitives::{
     BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
@@ -53,7 +53,7 @@ impl TxEnv {
         nonce: Option<u64>,
     ) -> PyResult<Self> {
         Ok(TxEnv(RevmTxEnv {
-            caller: addr(caller.unwrap_or_default())?,
+            caller: addr_or_zero(caller)?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
             gas_price: gas_price.unwrap_or_default(),
             gas_priority_fee: gas_priority_fee.map(Into::into),
@@ -96,7 +96,7 @@ impl BlockEnv {
     ) -> PyResult<Self> {
         Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default(),
-            coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
+            coinbase: addr_or_zero(coinbase)?,
             timestamp: timestamp.unwrap_or(U256::from(1)),
             difficulty: difficulty.unwrap_or_default(),
             prevrandao: prevrandao.map(Into::into),
