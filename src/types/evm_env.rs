@@ -1,8 +1,8 @@
 use crate::utils::{addr, addr_or_zero};
 use pyo3::prelude::*;
 use revm::primitives::{
-    BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
-    TxEnv as RevmTxEnv, U256,
+    BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
+    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, U256,
 };
 
 #[pyclass]
@@ -93,6 +93,7 @@ impl BlockEnv {
         prevrandao: Option<[u8; 32]>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
+        excess_blob_gas: Option<u64>,
     ) -> PyResult<Self> {
         Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default(),
@@ -102,7 +103,9 @@ impl BlockEnv {
             prevrandao: prevrandao.map(Into::into),
             basefee: basefee.unwrap_or_default(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
-            blob_excess_gas_and_price: None,
+            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
+                excess_blob_gas.unwrap_or(0),
+            )),
         }))
     }
 
