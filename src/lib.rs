@@ -8,6 +8,9 @@
 // `pyo3` feature.
 use ruint as _;
 
+// Pinning `revm`.
+use revm_interpreter as _;
+
 use pyo3::prelude::*;
 
 mod types;

@@ -58,7 +58,7 @@ impl EVM {
             None
         };
 
-        let db = RuntimeOrHandle::new().block_on(Backend::spawn(fork_opts));
+        let db = Backend::spawn(fork_opts);
 
         let executor = ExecutorBuilder::default()
             .gas_limit(U256::from(gas_limit))
