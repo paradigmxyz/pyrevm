@@ -3,22 +3,13 @@ name = "pyrevm"
 version = "0.2.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "pyrevm"
 crate-type = ["cdylib"]
 
 [dependencies]
-primitive-types = "0.12"
+foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "0ab9e3c6fbeaa921c503c2ba1f319834b23f424b" }
+revm = "6.1"
+revm-interpreter = "=3.1"
 pyo3 = { version = "0.19", features = ["extension-module"] }
-revm = "3"
-bytes = "1.5"
-foundry-evm = { git = "https://github.com/foundry-rs/foundry" }
-hex = "0.4"
-eyre = "0.6"
-ruint = { version = "1.10", features = ["primitive-types", "pyo3"] }
-reqwest = { version = "0.11.20", features = ["rustls"] }
 
-[patch.crates-io]
-revm = { git = "https://github.com/bluealloy/revm", rev = "6b55b9c0ab264c000e087c2f54f2d8dc24b869aa" }
-revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "6b55b9c0ab264c000e087c2f54f2d8dc24b869aa" }
+ruint = { version = "1.10", features = ["pyo3"] }

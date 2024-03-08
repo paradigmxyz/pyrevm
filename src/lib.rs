@@ -1,11 +1,15 @@
-// Annoying false positive lint:
-// address: &str,
-//   |       ^ help: if you would like to reborrow, try removing `&*`: `&`
-//   |
-//   = note: `#[warn(clippy::borrow_deref_ref)]` on by default
-//
-#![allow(clippy::borrow_deref_ref)]
+#![doc = include_str!("../README.md")]
+#![warn(unreachable_pub)]
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+#![deny(unused_must_use, rust_2018_idioms)]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![allow(clippy::too_many_arguments)]
+
+// `pyo3` feature.
+use ruint as _;
+
+// Pinning `revm`.
+use revm_interpreter as _;
 
 use pyo3::prelude::*;
 

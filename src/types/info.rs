@@ -1,5 +1,5 @@
 use pyo3::{prelude::*, types::PyBytes};
-use revm::primitives::{AccountInfo as RevmAccountInfo, Bytecode, Hash, KECCAK_EMPTY, U256};
+use revm::primitives::{AccountInfo as RevmAccountInfo, Bytecode, KECCAK_EMPTY, U256};
 
 #[pyclass]
 #[derive(Debug, Default, Clone)]
@@ -10,7 +10,7 @@ impl AccountInfo {
     // TODO: Is there a way to avoid all this boilerplate somehow?
     #[getter]
     fn balance(_self: PyRef<'_, Self>) -> U256 {
-        _self.0.balance.into()
+        _self.0.balance
     }
     #[getter]
     fn nonce(_self: PyRef<'_, Self>) -> u64 {
@@ -27,7 +27,7 @@ impl AccountInfo {
     }
     #[getter]
     fn code_hash(_self: PyRef<'_, Self>) -> [u8; 32] {
-        _self.0.code_hash.to_fixed_bytes()
+        _self.0.code_hash.0
     }
 
     #[new]
@@ -38,21 +38,13 @@ impl AccountInfo {
         code_hash: Option<&PyBytes>,
         code: Option<&PyBytes>,
     ) -> PyResult<Self> {
+        let code = code.map(|bytes| Bytecode::new_raw(bytes.as_bytes().to_vec().into()));
         let code_hash = code_hash
-            .map(|bytes| {
-                let bytes = bytes.as_bytes();
-                Hash::from_slice(bytes)
-            })
+            .and_then(|hash| hash.as_bytes().try_into().ok())
+            .or_else(|| code.as_ref().map(|code| code.hash_slow()))
             .unwrap_or(KECCAK_EMPTY);
-        let code = code
-            .map(|bytes| {
-                let bytes = bytes.as_bytes();
-                bytes.to_vec()
-            })
-            .map(|bytes| Bytecode::new_raw(bytes.into()));
-
         Ok(AccountInfo(RevmAccountInfo {
-            balance: balance.unwrap_or_default().into(),
+            balance: balance.unwrap_or_default(),
             code_hash,
             code,
             nonce,

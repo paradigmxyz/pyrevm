@@ -1,17 +1,18 @@
-use std::fmt::Debug;
-
+use crate::{
+    types::{AccountInfo, Env},
+    utils::addr,
+};
 use foundry_evm::{
-    executor::{fork::CreateFork, opts::EvmOpts, Backend, Executor, ExecutorBuilder},
+    backend::Backend,
+    executors::{Executor, ExecutorBuilder},
+    fork::CreateFork,
+    opts::EvmOpts,
     utils::RuntimeOrHandle,
 };
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use revm::{primitives::U256, Database};
-
-use crate::{
-    types::{AccountInfo, Env},
-    utils::addr,
-};
+use std::fmt::Debug;
 
 #[pyclass]
 pub struct EVM(Executor);
@@ -57,10 +58,10 @@ impl EVM {
             None
         };
 
-        let db = RuntimeOrHandle::new().block_on(Backend::spawn(fork_opts));
+        let db = Backend::spawn(fork_opts);
 
         let executor = ExecutorBuilder::default()
-            .gas_limit(gas_limit.into())
+            .gas_limit(U256::from(gas_limit))
             .inspectors(|stack| stack.trace(tracing))
             .build(env.unwrap_or_default().into(), db);
 
@@ -83,7 +84,7 @@ impl EVM {
         info: AccountInfo,
     ) -> PyResult<()> {
         let db = &mut _self.0.backend;
-        db.insert_account_info(addr(address)?.into(), info.into());
+        db.insert_account_info(addr(address)?, info.into());
 
         Ok(())
     }
@@ -92,15 +93,15 @@ impl EVM {
     fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
         _self
             .0
-            .set_balance(addr(address)?.into(), balance.into())
+            .set_balance(addr(address)?, balance)
             .map_err(pyerr)?;
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
-        let balance = _self.0.get_balance(addr(address)?.into()).map_err(pyerr)?;
-        Ok(balance.into())
+        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
+        Ok(balance)
     }
 
     fn call_raw_committing(
@@ -116,10 +117,10 @@ impl EVM {
                 // TODO: The constant type conversions when
                 // crossing the boundary is annoying. Can we pass it
                 // a type that's already an `Address`?
-                addr(caller)?.into(),
-                addr(to)?.into(),
+                addr(caller)?,
+                addr(to)?,
                 data.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
             )
             .map_err(pyerr)?;
 
@@ -128,7 +129,6 @@ impl EVM {
         }
 
         // TODO: Return the traces back to the user.
-        dbg!(&res.traces);
         Ok(res.result.to_vec())
     }
 
@@ -142,10 +142,10 @@ impl EVM {
         let res = _self
             .0
             .call_raw(
-                addr(caller)?.into(),
-                addr(to)?.into(),
+                addr(caller)?,
+                addr(to)?,
                 data.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
             )
             .map_err(pyerr)?;
 
@@ -153,7 +153,6 @@ impl EVM {
             return Err(pyerr(res.exit_reason));
         }
 
-        dbg!(&res.traces);
         Ok(res.result.to_vec())
     }
 
@@ -168,14 +167,13 @@ impl EVM {
         let res = _self
             .0
             .deploy(
-                addr(deployer)?.into(),
+                addr(deployer)?,
                 code.unwrap_or_default().into(),
-                value.unwrap_or_default().into(),
+                value.unwrap_or_default(),
                 None,
             )
             .map_err(pyerr)?;
 
-        dbg!(&res.traces);
         Ok(format!("{:?}", res.address))
     }
 }
