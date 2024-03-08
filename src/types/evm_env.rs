@@ -1,8 +1,8 @@
 use crate::utils::{addr, addr_or_zero};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyBytes};
 use revm::primitives::{
     BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
-    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, U256,
+    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
 };
 
 #[pyclass]
@@ -90,17 +90,23 @@ impl BlockEnv {
         coinbase: Option<&str>,
         timestamp: Option<U256>,
         difficulty: Option<U256>,
-        prevrandao: Option<[u8; 32]>,
+        prevrandao: Option<&PyBytes>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
         excess_blob_gas: Option<u64>,
     ) -> PyResult<Self> {
+        let prevrandao = match prevrandao {
+            Some(b) => {
+                B256::try_from(b.as_bytes()).map_err(|e| PyTypeError::new_err(e.to_string()))?
+            }
+            None => B256::ZERO,
+        };
         Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default(),
             coinbase: addr_or_zero(coinbase)?,
             timestamp: timestamp.unwrap_or(U256::from(1)),
             difficulty: difficulty.unwrap_or_default(),
-            prevrandao: prevrandao.map(Into::into),
+            prevrandao: Some(prevrandao),
             basefee: basefee.unwrap_or_default(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
