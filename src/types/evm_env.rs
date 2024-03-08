@@ -1,13 +1,9 @@
-use pyo3::prelude::*;
-use revm::{
-    precompile::B256,
-    primitives::{
-        BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo,
-        TxEnv as RevmTxEnv, U256,
-    },
+use crate::utils::{addr, addr_or_zero};
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyBytes};
+use revm::primitives::{
+    BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
+    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
 };
-
-use crate::utils::addr;
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -57,16 +53,16 @@ impl TxEnv {
         nonce: Option<u64>,
     ) -> PyResult<Self> {
         Ok(TxEnv(RevmTxEnv {
-            caller: addr(caller.unwrap_or_default())?,
+            caller: addr_or_zero(caller)?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
-            gas_price: gas_price.unwrap_or_default().into(),
+            gas_price: gas_price.unwrap_or_default(),
             gas_priority_fee: gas_priority_fee.map(Into::into),
             transact_to: match to {
                 Some(inner) => TransactTo::Call(addr(inner)?),
                 // TODO: Figure out how to integrate CREATE2 here
                 None => TransactTo::Create(CreateScheme::Create),
             },
-            value: value.unwrap_or_default().into(),
+            value: value.unwrap_or_default(),
             data: data.unwrap_or_default().into(),
             chain_id,
             nonce,
@@ -94,18 +90,28 @@ impl BlockEnv {
         coinbase: Option<&str>,
         timestamp: Option<U256>,
         difficulty: Option<U256>,
-        prevrandao: Option<B256>,
+        prevrandao: Option<&PyBytes>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
+        excess_blob_gas: Option<u64>,
     ) -> PyResult<Self> {
+        let prevrandao = match prevrandao {
+            Some(b) => {
+                B256::try_from(b.as_bytes()).map_err(|e| PyTypeError::new_err(e.to_string()))?
+            }
+            None => B256::ZERO,
+        };
         Ok(BlockEnv(RevmBlockEnv {
-            number: number.unwrap_or_default().into(),
-            coinbase: addr(coinbase.unwrap_or("0x0000000000000000000000000000000000000000"))?,
-            timestamp: timestamp.unwrap_or(U256::from(1)).into(),
-            difficulty: difficulty.unwrap_or_default().into(),
-            prevrandao: prevrandao.map(Into::into),
-            basefee: basefee.unwrap_or_default().into(),
-            gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)).into(),
+            number: number.unwrap_or_default(),
+            coinbase: addr_or_zero(coinbase)?,
+            timestamp: timestamp.unwrap_or(U256::from(1)),
+            difficulty: difficulty.unwrap_or_default(),
+            prevrandao: Some(prevrandao),
+            basefee: basefee.unwrap_or_default(),
+            gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
+            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
+                excess_blob_gas.unwrap_or(0),
+            )),
         }))
     }
 
