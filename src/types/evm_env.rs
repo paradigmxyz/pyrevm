@@ -115,6 +115,36 @@ impl BlockEnv {
         }))
     }
 
+    #[getter]
+    fn number(&self) -> U256  {
+        self.0.number
+    }
+
+    #[getter]
+    fn coinbase(&self) -> String {
+        self.0.coinbase.to_string()
+    }
+
+    #[getter]
+    fn timestamp(&self) -> U256 {
+        self.0.timestamp
+    }
+
+    #[getter]
+    fn difficulty(&self) -> U256 {
+        self.0.difficulty
+    }
+
+    #[getter]
+    fn prevrandao(&self) -> Option<[u8; 32]> {
+        self.0.prevrandao.map(|i| i.0)
+    }
+
+    #[getter]
+    fn basefee(&self) -> U256 {
+        self.0.basefee
+    }
+
     fn __str__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }

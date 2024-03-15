@@ -3953,6 +3953,7 @@ dependencies = [
  "revm",
  "revm-interpreter",
  "ruint",
+ "tracing",
 ]
 
 [[package]]

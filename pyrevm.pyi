@@ -15,6 +15,21 @@ class BlockEnv:
         gas_limit: Optional[int] = None,
     ) -> "BlockEnv": ...
 
+    @property
+    def number(self: "BlockEnv") -> int: ...
+    @property
+    def coinbase(self: "BlockEnv") -> str: ...
+    @property
+    def timestamp(self: "BlockEnv") -> int: ...
+    @property
+    def difficulty(self: "BlockEnv") -> int: ...
+    @property
+    def prevrandao(self: "BlockEnv") -> bytes: ...
+    @property
+    def basefee(self: "BlockEnv") -> int: ...
+    @property
+    def gas_limit(self: "BlockEnv") -> int: ...
+
 class TxEnv:
     def __new__(
         cls: Type["TxEnv"],
@@ -24,7 +39,7 @@ class TxEnv:
         gas_priority_fee: Optional[int] = None,
         to: Optional[str] = None,
         value: Optional[int] = None,
-        data: Optional[list[int]] = None,
+        data: Optional[bytes] = None,
         chain_id: Optional[int] = None,
         nonce: Optional[int] = None,
     ) -> "TxEnv": ...
@@ -43,14 +58,14 @@ class AccountInfo:
     @property
     def nonce(self: "AccountInfo") -> int: ...
     @property
-    def code(self: "AccountInfo") -> list[int]: ...
+    def code(self: "AccountInfo") -> bytes: ...
     @property
-    def code_hash(self: "AccountInfo") -> list[int]: ...
+    def code_hash(self: "AccountInfo") -> bytes: ...
     def __new__(
         cls: Type["AccountInfo"],
         nonce: int = 0,
-        code_hash: Optional[list[int]] = None,
-        code: Optional[list[int]] = None,
+        code_hash: Optional[bytes] = None,
+        code: Optional[bytes] = None,
     ) -> "AccountInfo": ...
 
 class EvmOpts:
@@ -74,26 +89,27 @@ class EVM:
         gas_limit: int = 2**64 - 1,
         tracing: bool = False,
     ) -> "EVM": ...
-    def basic(self: "EVM", address: str) -> Optional[AccountInfo]: ...
+    def basic(self: "EVM", address: str) -> AccountInfo: ...
     def insert_account_info(self: "EVM", address: str, info: AccountInfo) -> None: ...
     def call_raw_committing(
         self: "EVM",
         caller: str,
         to: str,
+        calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-        data: Optional[list[int]] = None,
-    ) -> list[int]: ...
+    ) -> bytes: ...
     def call_raw(
         self: "EVM",
         caller: str,
         to: str,
+        calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-        data: Optional[list[int]] = None,
-    ) -> list[int]: ...
+        commit: bool = False,
+    ) -> bytes: ...
     def deploy(
         self: "EVM",
         deployer: str,
-        code: list[int],
+        code: bytes,
         value: Optional[int] = None,
     ) -> str: ...
     def get_balance(self: "EVM", address: str) -> int: ...
