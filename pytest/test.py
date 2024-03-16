@@ -4,7 +4,7 @@ import pytest
 from pyrevm import EVM, Env, BlockEnv, AccountInfo
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
-address2 = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
@@ -128,19 +128,23 @@ def test_call_empty_result():
 
     evm.set_balance(address2, 10000)
 
-    deposit = evm.call_raw_committing(
-        caller=address2,
-        to=address,
-        value=10000,
-        calldata=bytes.fromhex("d0e30db0"),
-    )
+    try:
+        deposit = evm.call_raw_committing(
+            caller=address2,
+            to=address,
+            value=10000,
+            calldata=bytes.fromhex("d0e30db0"),
+        )
 
-    assert deposit == []
+        assert deposit == []
 
-    balance = evm.call_raw(
-        caller=address2,
-        to=address,
-        calldata=bytes.fromhex("70a08231" + encode_address(address2)),
-    )
+        balance = evm.call_raw(
+            caller=address2,
+            to=address,
+            calldata=bytes.fromhex("70a08231" + encode_address(address2)),
+        )
 
-    assert int.from_bytes(balance, "big") == 10000
+        assert int.from_bytes(balance, "big") == 10000
+    except Exception as e:
+        accs = {k: (v.balance, any(v.code)) for k, v in evm.get_accounts().items()}
+        raise Exception(f"{e} - {accs}") from e

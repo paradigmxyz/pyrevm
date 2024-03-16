@@ -84,28 +84,71 @@ class EVM:
     def __new__(
         cls: Type["EVM"],
         env: Optional[Env] = None,
-        fork_url: Optional[str] = None,
-        fork_block_number: Optional[int] = None,
+        # fork_url: Optional[str] = None,
+        # fork_block_number: Optional[int] = None,
         gas_limit: int = 2**64 - 1,
         tracing: bool = False,
-    ) -> "EVM": ...
-    def basic(self: "EVM", address: str) -> AccountInfo: ...
-    def insert_account_info(self: "EVM", address: str, info: AccountInfo) -> None: ...
+        spec_id="latest",
+    ) -> "EVM":
+        """
+        Creates a new EVM instance.
+        :param env: The environment.
+        :param gas_limit: The gas limit.
+        :param tracing: Whether to enable tracing.
+        :param spec_id: The spec ID.
+        """
+
+    def get_accounts(self) -> dict[str, AccountInfo]:
+        """
+        :return: a dictionary of account addresses to account info
+        """
+
+    def basic(self: "EVM", address: str) -> AccountInfo:
+        """
+        Returns the basic account info for the given address.
+        :param address: The address of the account.
+        :return: The account info.
+        """
+
+    def insert_account_info(self: "EVM", address: str, info: AccountInfo) -> None:
+        """
+        Inserts the given account info into the state.
+        :param address: The address of the account.
+        :param info: The account info.
+        """
+
     def call_raw_committing(
         self: "EVM",
         caller: str,
         to: str,
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-    ) -> bytes: ...
+    ) -> bytes:
+        """
+        Processes a raw call, committing the result to the state.
+        :param caller: The address of the caller.
+        :param to: The address of the callee.
+        :param calldata: The calldata.
+        :param value: The value.
+        :return: The return data.
+        """
+
     def call_raw(
         self: "EVM",
         caller: str,
         to: str,
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-        commit: bool = False,
-    ) -> bytes: ...
+    ) -> bytes:
+        """
+        Processes a raw call, without committing the result to the state.
+        :param caller: The address of the caller.
+        :param to: The address of the callee.
+        :param calldata: The calldata.
+        :param value: The value.
+        :return: The return data.
+        """
+
     def deploy(
         self: "EVM",
         deployer: str,
