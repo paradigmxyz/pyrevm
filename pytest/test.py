@@ -88,9 +88,9 @@ def test_balances():
 
 def test_call_raw():
     evm = EVM()
-    evm.insert_account_info(
-        address, AccountInfo(code=load_contract_bin("full_math.bin"))
-    )
+    info = AccountInfo(code=load_contract_bin("full_math.bin"))
+    evm.insert_account_info(address, info)
+    assert evm.basic(address).code == info.code
 
     # mulDiv() -> 64 * 8 / 2
     result = evm.call_raw(

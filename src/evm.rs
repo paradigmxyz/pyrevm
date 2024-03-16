@@ -57,8 +57,8 @@ impl EVM {
     ) -> PyResult<Self> {
         // let db = CacheDB::new(EmptyDB::default());
         let db = CacheDB::new(Default::default());
+        // let db = CacheDB::new(InMemoryDB::new(EmptyDB::new()));
         Ok(EVM {
-            // db: CacheDB::new(InMemoryDB::new(EmptyDB::new())),
             db,
             env: env.or(Some(Env::default())).unwrap().into(),
             gas_limit: U256::from(gas_limit),
@@ -68,8 +68,8 @@ impl EVM {
 
     /// Get basic account information.
     fn basic(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<AccountInfo> {
-        let acc = _self.db.basic(addr(address)?).map_err(pyerr)?;
-        Ok(acc.map(Into::into).unwrap_or_else(AccountInfo::default))
+        let db_account = _self.db.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(db_account.info.clone().into())
     }
 
     /// Get account code by its hash.
@@ -105,25 +105,21 @@ impl EVM {
         let mut info = _self.db.basic(target).map_err(pyerr)?.unwrap_or_default();
         info.balance = balance;
         _self.db.insert_account_info(target, info.clone());
-        if !_self.db.accounts.contains_key(&target) {
-            panic!("Account not found after insert");
-        }
-        // assert_eq!(_self.db.accounts.entry(target).map(|o| o.map(|b| b.info)), Some(info));
-        // assert_eq!(_self.db.basic(target).map_err(pyerr)?, Entry::Occupied(info));
+        assert_eq!(_self.db.load_account(target).map(|a| a.info.clone()).map_err(pyerr)?, info);
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
-    fn get_balance(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<Option<U256>> {
+    fn get_balance(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<U256> {
         // Ok(_self.db.basic(addr(address).map_err(pyerr)?)?.map(|acc| acc.balance))
-        let acc = _self.db.basic(addr(address)?).map_err(pyerr)?;
-        Ok(acc.map(|a| a.balance))
+        let acc = _self.db.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(acc.info.balance)
     }
 
     // runs a raw call and returns the result
     #[pyo3(signature = (caller, to, calldata=None, value=None))]
     pub fn call_raw_committing(
-        mut _self: PyRefMut<'_, Self>,
+        mut _self: &mut PyRefMut<'_, Self>,
         caller: &str,
         to: &str,
         calldata: Option<Vec<u8>>,
@@ -153,7 +149,7 @@ impl EVM {
         _abi: Option<&str>,
     ) -> PyResult<String> {
         let env = build_test_env(&_self, addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.unwrap_or_default().into(), value.unwrap_or_default());
-        let address = deploy_with_env(_self, env)
+        let address = deploy_with_env(&_self, env)
             .map_err(pyerr)?;
         Ok(format!("{:?}", address))
     }
@@ -200,7 +196,7 @@ fn build_test_env(
 /// Deploys a contract using the given `env` and commits the new state to the underlying
 /// database
 fn deploy_with_env(
-    mut _self: PyRefMut<'_, EVM>,
+    mut _self: &PyRefMut<'_, EVM>,
     env: EnvWithHandlerCfg,
 ) -> PyResult<Address> {
     debug_assert!(
@@ -235,8 +231,9 @@ fn deploy_with_env(
 
 
 fn call_raw_with_env(
-    mut _self: PyRefMut<'_, EVM>,
+    &mut _self: &mut PyRefMut<'_, EVM>,
     env: EnvWithHandlerCfg,
+    commit: bool,
 ) -> PyResult<Bytes> {
     debug_assert!(
         matches!(env.tx.transact_to, TransactTo::Call(_)),
@@ -258,6 +255,9 @@ fn call_raw_with_env(
         Success { reason, gas_used, gas_refunded, logs, output } => {
             let data = output.clone().into_data();
             trace!(reason=?reason, gas_used, gas_refunded, "call done");
+            if commit {
+                (*_self).db.commit(state);
+            }
             Ok(data)
         },
         _ => Err(pyerr(result.clone())),
@@ -265,7 +265,7 @@ fn call_raw_with_env(
 }
 
 fn call_raw(
-    mut _self: PyRefMut<'_, EVM>,
+    &mut _self: &mut PyRefMut<'_, EVM>,
     caller: &str,
     to: &str,
     calldata: Option<Vec<u8>>,
@@ -273,8 +273,8 @@ fn call_raw(
     commit: bool,
 ) -> PyResult<Vec<u8>> {
     let env = build_test_env(&_self, addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
-    let mut result = call_raw_with_env(_self, env).map_err(pyerr)?;
-    // self.commit(&mut result);
+    let result = call_raw_with_env(_self, env, commit).map_err(pyerr)?;
+
     // TODO: Return the traces back to the user.
     Ok(result.to_vec())
 }
