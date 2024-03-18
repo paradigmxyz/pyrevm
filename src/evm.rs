@@ -16,7 +16,7 @@ use ethers_providers::{Http, Provider};
 
 use crate::{types::{AccountInfo, Env}, utils, utils::addr};
 use crate::empty_db_wrapper::EmptyDBWrapper;
-use crate::utils::pydict;
+use crate::utils::{pydict, pyerr};
 
 type MemDB = CacheDB<EmptyDBWrapper>;
 type ForkDB = CacheDB<EthersDB<Provider<Http>>>;
@@ -116,9 +116,7 @@ impl EVM {
         address: &str,
         info: AccountInfo,
     ) -> PyResult<()> {
-        let info = RevmAccountInfo::from(info);
-        self.db.insert_account_info(addr(address)?, info.clone());
-        assert_eq!(self.db.basic(addr(address)?).unwrap().unwrap().balance, info.balance);
+        self.db.insert_account_info(addr(address)?, info.clone().into());
         Ok(())
     }
 
@@ -128,18 +126,13 @@ impl EVM {
         let mut info = self.db.basic(target).map_err(utils::pyerr)?.unwrap_or_default();
         info.balance = balance;
         self.db.insert_account_info(target, info.clone());
-        assert_eq!(self.db.load_account(target).map(|a| a.info.clone()).map_err(utils::pyerr)?, info);
-        // assert_eq!(self.db.basic(target).map(|a| a.unwrap_or_default().balance).map_err(pyerr)?, balance);
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(&mut self, address: &str) -> PyResult<U256> {
-        // Ok(self.db.basic(addr(address).map_err(pyerr)?)?.map(|acc| acc.balance))
-        let acc = self.db.load_account(addr(address)?).map_err(utils::pyerr)?;
-        // let db_account = self.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
-        // assert_eq!(db_account.balance, acc.info.balance);
-        Ok(acc.info.balance)
+        let RevmAccountInfo { balance, .. } = self.db.basic(addr(address)?).map_err(utils::pyerr)?.unwrap_or_default();
+        Ok(balance)
     }
 
     /// runs a raw call and returns the result
@@ -171,7 +164,6 @@ impl EVM {
     ) -> PyResult<(Vec<u8>, HashMap<String, AccountInfo>)> {
         match call_raw(self, caller, to, calldata, value)
         {
-            // todo: return state to the caller
             Ok((data, state)) => Ok((data.to_vec(), pydict(state))),
             Err(e) => Err(e),
         }
@@ -256,10 +248,10 @@ fn deploy_with_env(
                 Output::Create(_, address) => {
                     Ok((address.unwrap(), state))
                 }
-                _ => Err(utils::pyerr("Invalid output")),
+                _ => Err(pyerr("Invalid output")),
             }
         },
-        _ => Err(utils::pyerr(result.clone())),
+        _ => Err(pyerr(result.clone())),
     }
 }
 

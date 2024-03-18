@@ -24,6 +24,6 @@ pub(crate) fn pydict(res: State) -> HashMap<String, AccountInfo> {
 }
 
 /// Convert a Rust error into a Python error.
-pub fn pyerr<T: Debug>(err: T) -> PyErr {
+pub(crate) fn pyerr<T: Debug>(err: T) -> PyErr {
     PyRuntimeError::new_err(format!("{:?}", err))
 }
