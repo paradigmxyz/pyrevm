@@ -7,9 +7,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "0ab9e3c6fbeaa921c503c2ba1f319834b23f424b" }
-revm = "6.1"
-revm-interpreter = "=3.1"
+revm = "7.1.0"
+revm-interpreter = "3.3.0"
 tracing = "0.1"
 pyo3 = { version = "0.19", features = ["extension-module"] }
 ruint = { version = "1.10", features = ["pyo3"] }

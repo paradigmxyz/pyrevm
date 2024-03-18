@@ -20,6 +20,7 @@ mod evm;
 pub use evm::EVM;
 
 mod utils;
+mod empty_db_wrapper;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {

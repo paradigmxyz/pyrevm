@@ -1,23 +1,23 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use revm::{Database, DatabaseCommit, Evm, InMemoryDB, primitives::U256};
-use revm::db::{CacheDB};
+use revm::{Database, DatabaseCommit, DatabaseRef, Evm, InMemoryDB, primitives::U256};
+use revm::db::CacheDB;
 use revm::precompile::{Address, Bytes};
 use revm::precompile::B256;
-use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, EnvWithHandlerCfg, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
-use revm::primitives::ExecutionResult::{Success};
+use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, AccountInfo as RevmAccountInfo, EnvWithHandlerCfg, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
+use revm::primitives::ExecutionResult::Success;
 use tracing::{trace, warn};
 
 use crate::{
     types::{AccountInfo, Env},
     utils::addr,
 };
+use crate::empty_db_wrapper::EmptyDBWrapper;
 
-type DB = CacheDB<InMemoryDB>;
+type DB = CacheDB<EmptyDBWrapper>;
 
 #[derive(Clone, Debug)]
 #[pyclass]
@@ -50,19 +50,16 @@ fn pyerr<T: Debug>(err: T) -> PyErr {
 #[pymethods]
 impl EVM {
     #[new]
-    #[pyo3(signature = (env=None, gas_limit=18446744073709551615, tracing=false, spec_id="LATEST"))]
+    #[pyo3(signature = (env=None, gas_limit=18446744073709551615, tracing=false, spec_id="SHANGHAI"))]
     fn new(
         env: Option<Env>,
         gas_limit: u64,
         tracing: bool,
         spec_id: &str,
     ) -> PyResult<Self> {
-        // let db = CacheDB::new(EmptyDB::default());
-        let db = CacheDB::new(Default::default());
-        // let db = CacheDB::new(InMemoryDB::new(EmptyDB::new()));
         Ok(EVM {
-            db,
-            env: env.or(Some(Env::default())).unwrap().into(),
+            db: DB::default(),
+            env: env.unwrap_or_default().into(),
             gas_limit: U256::from(gas_limit),
             handler_cfg: HandlerCfg::new(SpecId::from(spec_id)),
         })
@@ -70,14 +67,14 @@ impl EVM {
 
     /// Get basic account information.
     fn basic(&mut self, address: &str) -> PyResult<AccountInfo> {
-        let db_account = self.db.load_account(addr(address)?).map_err(pyerr)?;
-        Ok(db_account.info.clone().into())
+        let db_account = self.db.basic_ref(addr(address)?).map_err(pyerr)?;
+        Ok(db_account.unwrap_or_default().into())
     }
 
-    fn get_accounts(&self) -> PyResult<HashMap<String, AccountInfo>> {context
-        self.db
-        .journaled_state
-        .load_account(tx_caller, &mut context.evm.inner.db)?;
+    fn get_accounts(&self) -> PyResult<HashMap<String, AccountInfo>> {
+        // self.db
+        // .journaled_state
+        // .load_account(tx_caller, &mut context.evm.inner.db)?;
         Ok(self.db.accounts.iter().map(
             |(address, db_acc)| (address.to_string(), db_acc.info.clone().into())
         ).collect())
@@ -106,7 +103,9 @@ impl EVM {
         address: &str,
         info: AccountInfo,
     ) -> PyResult<()> {
-        self.db.insert_account_info(addr(address)?, info.into());
+        let info = RevmAccountInfo::from(info);
+        self.db.insert_account_info(addr(address)?, info.clone());
+        assert_eq!(self.db.basic(addr(address)?).unwrap().unwrap().balance, info.balance);
         Ok(())
     }
 
@@ -117,6 +116,7 @@ impl EVM {
         info.balance = balance;
         self.db.insert_account_info(target, info.clone());
         assert_eq!(self.db.load_account(target).map(|a| a.info.clone()).map_err(pyerr)?, info);
+        // assert_eq!(self.db.basic(target).map(|a| a.unwrap_or_default().balance).map_err(pyerr)?, balance);
         Ok(())
     }
 
@@ -124,6 +124,8 @@ impl EVM {
     fn get_balance(&mut self, address: &str) -> PyResult<U256> {
         // Ok(self.db.basic(addr(address).map_err(pyerr)?)?.map(|acc| acc.balance))
         let acc = self.db.load_account(addr(address)?).map_err(pyerr)?;
+        // let db_account = self.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
+        // assert_eq!(db_account.balance, acc.info.balance);
         Ok(acc.info.balance)
     }
 
@@ -235,7 +237,7 @@ fn deploy_with_env(
     let ResultAndState {
         result, state
     } = Evm::builder()
-        .with_ref_db(&db)
+        .with_ref_db(db)
         .with_env_with_handler_cfg(env)
         .build()
         .transact()

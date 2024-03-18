@@ -80,10 +80,14 @@ def test_balances():
 
     # Give ether
     AMT = 10000
-    evm.set_balance(address, AMT)
+    try:
+        evm.set_balance(address, AMT)
 
-    assert evm.get_balance(address) == AMT
-    assert evm.basic(address).balance == AMT
+        assert evm.get_balance(address) == AMT
+        assert evm.basic(address).balance == AMT
+    except Exception as e:
+        accs = {k: (v.balance, any(v.code)) for k, v in evm.get_accounts().items()}
+        raise Exception(accs) from e
 
 
 def test_call_raw():
@@ -147,4 +151,4 @@ def test_call_empty_result():
         assert int.from_bytes(balance, "big") == 10000
     except Exception as e:
         accs = {k: (v.balance, any(v.code)) for k, v in evm.get_accounts().items()}
-        raise Exception(f"{e} - {accs}") from e
+        raise Exception(accs) from e
