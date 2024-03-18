@@ -1,4 +1,5 @@
-from typing import Optional, Type
+from typing import Optional, Type, Tuple
+
 
 class CfgEnv:
     def __new__(cls: Type["CfgEnv"]) -> "CfgEnv": ...
@@ -14,21 +15,6 @@ class BlockEnv:
         basefee: Optional[int] = None,
         gas_limit: Optional[int] = None,
     ) -> "BlockEnv": ...
-
-    @property
-    def number(self: "BlockEnv") -> int: ...
-    @property
-    def coinbase(self: "BlockEnv") -> str: ...
-    @property
-    def timestamp(self: "BlockEnv") -> int: ...
-    @property
-    def difficulty(self: "BlockEnv") -> int: ...
-    @property
-    def prevrandao(self: "BlockEnv") -> bytes: ...
-    @property
-    def basefee(self: "BlockEnv") -> int: ...
-    @property
-    def gas_limit(self: "BlockEnv") -> int: ...
 
 class TxEnv:
     def __new__(
@@ -84,11 +70,11 @@ class EVM:
     def __new__(
         cls: Type["EVM"],
         env: Optional[Env] = None,
-        # fork_url: Optional[str] = None,
-        # fork_block_number: Optional[int] = None,
+        fork_url: Optional[str] = None,
+        fork_block_number: Optional[int] = None,
         gas_limit: int = 2**64 - 1,
         tracing: bool = False,
-        spec_id="latest",
+        spec_id="SHANGHAI",
     ) -> "EVM":
         """
         Creates a new EVM instance.
@@ -96,11 +82,6 @@ class EVM:
         :param gas_limit: The gas limit.
         :param tracing: Whether to enable tracing.
         :param spec_id: The spec ID.
-        """
-
-    def get_accounts(self) -> dict[str, AccountInfo]:
-        """
-        :return: a dictionary of account addresses to account info
         """
 
     def basic(self: "EVM", address: str) -> AccountInfo:
@@ -139,14 +120,14 @@ class EVM:
         to: str,
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-    ) -> bytes:
+    ) -> Tuple[bytes, dict[str, AccountInfo]]:
         """
         Processes a raw call, without committing the result to the state.
         :param caller: The address of the caller.
         :param to: The address of the callee.
         :param calldata: The calldata.
         :param value: The value.
-        :return: The return data.
+        :return: The return data and a list of changes to the state.
         """
 
     def deploy(
@@ -155,5 +136,16 @@ class EVM:
         code: bytes,
         value: Optional[int] = None,
     ) -> str: ...
-    def get_balance(self: "EVM", address: str) -> int: ...
-    def set_balance(self: "EVM", address: str, balance: int) -> None: ...
+    def get_balance(self: "EVM", address: str) -> int:
+        """
+        Returns the balance of the given address.
+        :param address: The address.
+        :return: The balance.
+        """
+
+    def set_balance(self: "EVM", address: str, balance: int) -> None
+        """
+        Sets the balance of the given address.
+        :param address: The address.
+        :param balance: The balance.
+        """

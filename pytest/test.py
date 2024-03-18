@@ -25,7 +25,7 @@ def encode_uint(num: int) -> str:
 def encode_address(address: str) -> str:
     return f'{"0" * 24}{address[2:]}'
 
-@pytest.mark.skip("Fork not supported")
+
 def test_revm():
     # set up an evm
     evm = EVM(
@@ -80,14 +80,10 @@ def test_balances():
 
     # Give ether
     AMT = 10000
-    try:
-        evm.set_balance(address, AMT)
+    evm.set_balance(address, AMT)
 
-        assert evm.get_balance(address) == AMT
-        assert evm.basic(address).balance == AMT
-    except Exception as e:
-        accs = {k: (v.balance, any(v.code)) for k, v in evm.get_accounts().items()}
-        raise Exception(accs) from e
+    assert evm.get_balance(address) == AMT
+    assert evm.basic(address).balance == AMT
 
 
 def test_call_raw():
@@ -97,7 +93,7 @@ def test_call_raw():
     assert evm.basic(address).code == info.code
 
     # mulDiv() -> 64 * 8 / 2
-    result = evm.call_raw(
+    result, changes = evm.call_raw(
         caller=address2,
         to=address,
         calldata=bytes.fromhex(
@@ -106,6 +102,8 @@ def test_call_raw():
     )
 
     assert int.from_bytes(result, "big") == 256
+    assert changes[address].nonce == 0
+    assert changes[address2].nonce == 1
 
 
 def test_call_committing():
@@ -132,23 +130,19 @@ def test_call_empty_result():
 
     evm.set_balance(address2, 10000)
 
-    try:
-        deposit = evm.call_raw_committing(
-            caller=address2,
-            to=address,
-            value=10000,
-            calldata=bytes.fromhex("d0e30db0"),
-        )
+    deposit = evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        value=10000,
+        calldata=bytes.fromhex("d0e30db0"),
+    )
 
-        assert deposit == []
+    assert deposit == []
 
-        balance = evm.call_raw(
-            caller=address2,
-            to=address,
-            calldata=bytes.fromhex("70a08231" + encode_address(address2)),
-        )
+    balance, _ = evm.call_raw(
+        caller=address2,
+        to=address,
+        calldata=bytes.fromhex("70a08231" + encode_address(address2)),
+    )
 
-        assert int.from_bytes(balance, "big") == 10000
-    except Exception as e:
-        accs = {k: (v.balance, any(v.code)) for k, v in evm.get_accounts().items()}
-        raise Exception(accs) from e
+    assert int.from_bytes(balance, "big") == 10000
