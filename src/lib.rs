@@ -16,6 +16,7 @@ pub use evm::EVM;
 mod utils;
 mod empty_db_wrapper;
 mod database;
+mod pystdout;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {

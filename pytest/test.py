@@ -1,3 +1,4 @@
+import json
 import os.path
 
 import pytest
@@ -8,8 +9,8 @@ address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
-KWARG_OPTS = [
-    {"fork_url": fork_url, "tracing": True},
+KWARG_CASES = [
+    {"fork_url": fork_url},
     {"fork_url": fork_url, "tracing": False, "fork_block_number": "latest"},
     {},
 ]
@@ -105,7 +106,7 @@ def test_balances_fork():
     assert evm.basic(address).balance == AMT
 
 
-@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+@pytest.mark.parametrize("kwargs", KWARG_CASES)
 def test_call_raw(kwargs):
     evm = EVM(**kwargs)
     info = AccountInfo(code=load_contract_bin("full_math.bin"))
@@ -126,7 +127,7 @@ def test_call_raw(kwargs):
     assert changes[address2].nonce == 1
 
 
-@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+@pytest.mark.parametrize("kwargs", KWARG_CASES)
 def test_call_committing(kwargs):
     evm = EVM(**kwargs)
     evm.insert_account_info(
@@ -145,7 +146,7 @@ def test_call_committing(kwargs):
     assert int.from_bytes(result, "big") == 171
 
 
-@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+@pytest.mark.parametrize("kwargs", KWARG_CASES)
 def test_call_empty_result(kwargs):
     evm = EVM(**kwargs)
     evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
@@ -168,3 +169,24 @@ def test_call_empty_result(kwargs):
     )
 
     assert int.from_bytes(balance, "big") == 10000
+    assert not evm.tracing
+
+
+def test_tracing(capsys):
+    evm = EVM(tracing=True)
+    evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
+    evm.set_balance(address2, 10000)
+    evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        value=10000,
+        calldata=bytes.fromhex("d0e30db0"),
+    )
+    assert evm.tracing
+    captured = capsys.readouterr()
+    traces = [json.loads(i) for i in captured.out.split("\n") if i]
+    assert {'gasUsed': '0xffffffffffff5011',
+            'output': '0x',
+            'pass': True,
+            'stateRoot': '0x0000000000000000000000000000000000000000000000000000000000000000'} == traces[-1]
+    assert len(traces) == 128

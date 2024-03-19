@@ -198,3 +198,7 @@ class EVM:
     @property
     def env(self: "EVM") -> Env:
         """ Get the environment. """
+
+    @property
+    def tracing(self: "EVM") -> bool:
+        """ Whether tracing is enabled. """

@@ -1,17 +1,21 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::io::stdout;
 use pyo3::{PyErr, pymethods, PyResult, pyclass};
+use pyo3::ffi::PySys_WriteStdout;
 
-use revm::{Database, Evm, primitives::U256};
+use revm::{Database, Evm, inspector_handle_register, primitives::U256};
 use revm::DatabaseCommit;
 use revm::precompile::{Address, Bytes};
 use revm::precompile::B256;
 use revm::primitives::{AccountInfo as RevmAccountInfo, BlockEnv, CreateScheme, Env as RevmEnv, EnvWithHandlerCfg, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
 use revm::primitives::ExecutionResult::Success;
+use revm::inspectors::TracerEip3155;
 use tracing::{trace, warn};
 
 use crate::{types::{AccountInfo, Env}, utils::{addr, pydict, pyerr}};
 use crate::database::DB;
+use crate::pystdout::PySysStdout;
 
 
 #[derive(Clone, Debug)]
@@ -27,6 +31,9 @@ pub struct EVM {
     /// the passed in environment, as those limits are used by the EVM for certain opcodes like
     /// `gaslimit`.
     gas_limit: U256,
+
+    /// whether to trace the execution to stdout
+    tracing: bool,
 }
 
 #[pymethods]
@@ -46,7 +53,8 @@ impl EVM {
             db: fork_url.map(|url| DB::new_fork(url, fork_block_number)).unwrap_or(Ok(DB::new_memory()))?,
             env: env.unwrap_or_default().into(),
             gas_limit: U256::from(gas_limit),
-            handler_cfg: HandlerCfg::new(SpecId::from(spec_id))
+            handler_cfg: HandlerCfg::new(SpecId::from(spec_id)),
+            tracing,
         })
     }
 
@@ -118,7 +126,7 @@ impl EVM {
 
     #[pyo3(signature = (caller, to, calldata=None, value=None))]
     pub fn call_raw(
-        &self,
+        &mut self,
         caller: &str,
         to: &str,
         calldata: Option<Vec<u8>>,
@@ -152,8 +160,13 @@ impl EVM {
     }
 
     #[getter]
-    fn env(&self) -> PyResult<Env> {
-        Ok(self.env.clone().into())
+    fn env(&self) -> Env {
+        self.env.clone().into()
+    }
+
+    #[getter]
+    fn tracing(&self) -> bool {
+        self.tracing
     }
 }
 
@@ -197,7 +210,7 @@ impl EVM {
 
     /// Deploys a contract using the given `env` and commits the new state to the underlying
     /// database
-    fn deploy_with_env(&self, env: EnvWithHandlerCfg) -> PyResult<(Address, State)> {
+    fn deploy_with_env(&mut self, env: EnvWithHandlerCfg) -> PyResult<(Address, State)> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Create(_)),
             "Expect create transaction"
@@ -220,7 +233,7 @@ impl EVM {
         }
     }
 
-    fn call_raw_with_env(&self, env: EnvWithHandlerCfg) -> PyResult<(Bytes, State)>
+    fn call_raw_with_env(&mut self, env: EnvWithHandlerCfg) -> PyResult<(Bytes, State)>
     {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
@@ -241,14 +254,26 @@ impl EVM {
         }
     }
 
-    fn run_env(&self, env: EnvWithHandlerCfg) -> Result<ResultAndState, PyErr>
+    fn run_env(&mut self, env: EnvWithHandlerCfg) -> Result<ResultAndState, PyErr>
     {
-        let evm = Evm::builder()
-            .with_db(self.db.clone())
-            .with_env_with_handler_cfg(env)
-            .build()
-            .transact()
-            .map_err(pyerr)?;
-        Ok(evm)
+        let builder = Evm::builder()
+            .with_db(&mut self.db);
+
+        let result =
+            if self.tracing {
+                let tracer = TracerEip3155::new(Box::new(PySysStdout {}), true);
+                builder
+                    .with_external_context(tracer)
+                    .with_env_with_handler_cfg(env)
+                    .append_handler_register(inspector_handle_register)
+                    .build()
+                    .transact()
+            } else {
+                builder
+                    .with_env_with_handler_cfg(env)
+                    .build()
+                    .transact()
+            };
+        Ok(result.map_err(pyerr)?)
     }
 }
