@@ -17,6 +17,8 @@ use crate::{types::{AccountInfo, Env}, utils::{addr, pydict, pyerr}};
 use crate::database::DB;
 use crate::pystdout::PySysStdout;
 
+// In Py03 we use vec<u8> to represent bytes
+type PyBytes = Vec<u8>;
 
 #[derive(Clone, Debug)]
 #[pyclass]
@@ -65,7 +67,7 @@ impl EVM {
 
     /// Get account code by its hash.
     #[pyo3(signature = (code_hash))]
-    fn code_by_hash(&mut self, code_hash: &str) -> PyResult<Vec<u8>> {
+    fn code_by_hash(&mut self, code_hash: &str) -> PyResult<PyBytes> {
         let hash = code_hash.parse::<B256>().map_err(pyerr)?;
         Ok(self.db.code_by_hash(hash)?.bytecode.to_vec())
     }
@@ -76,7 +78,7 @@ impl EVM {
     }
 
     /// Get block hash by block number.
-    fn block_hash(&mut self, number: U256) -> PyResult<Vec<u8>> {
+    fn block_hash(&mut self, number: U256) -> PyResult<PyBytes> {
         Ok(self.db.block_hash(number)?.to_vec())
     }
 
@@ -110,9 +112,9 @@ impl EVM {
         &mut self,
         caller: &str,
         to: &str,
-        calldata: Option<Vec<u8>>,
+        calldata: Option<PyBytes>,
         value: Option<U256>,
-    ) -> PyResult<Vec<u8>> {
+    ) -> PyResult<PyBytes> {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
         match self.call_raw_with_env(env)
         {
@@ -129,9 +131,9 @@ impl EVM {
         &mut self,
         caller: &str,
         to: &str,
-        calldata: Option<Vec<u8>>,
+        calldata: Option<PyBytes>,
         value: Option<U256>,
-    ) -> PyResult<(Vec<u8>, HashMap<String, AccountInfo>)> {
+    ) -> PyResult<(PyBytes, HashMap<String, AccountInfo>)> {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
         match self.call_raw_with_env(env)
         {
@@ -144,7 +146,7 @@ impl EVM {
     fn deploy(
         &mut self,
         deployer: &str,
-        code: Option<Vec<u8>>,
+        code: Option<PyBytes>,
         value: Option<U256>,
         _abi: Option<&str>,
     ) -> PyResult<String> {
