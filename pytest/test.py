@@ -8,6 +8,12 @@ address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
+KWARG_OPTS = [
+    {"fork_url": fork_url, "tracing": True},
+    {"fork_url": fork_url, "tracing": False, "fork_block_number": "latest"},
+    {},
+]
+
 
 def load_contract_bin(contract_name: str) -> bytes:
     with open(
@@ -26,7 +32,7 @@ def encode_address(address: str) -> str:
     return f'{"0" * 24}{address[2:]}'
 
 
-def test_revm():
+def test_revm_fork():
     # set up an evm
     evm = EVM(
         # can fork from a remote node
@@ -86,8 +92,22 @@ def test_balances():
     assert evm.basic(address).balance == AMT
 
 
-def test_call_raw():
-    evm = EVM()
+def test_balances_fork():
+    evm = EVM(fork_url=fork_url, fork_block_number="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97")
+
+    vb_before = evm.basic(address)
+    assert vb_before.balance == 955628344913799071315
+
+    AMT = 10000
+    evm.set_balance(address, AMT)
+
+    assert evm.get_balance(address) == AMT
+    assert evm.basic(address).balance == AMT
+
+
+@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+def test_call_raw(kwargs):
+    evm = EVM(**kwargs)
     info = AccountInfo(code=load_contract_bin("full_math.bin"))
     evm.insert_account_info(address, info)
     assert evm.basic(address).code == info.code
@@ -106,8 +126,9 @@ def test_call_raw():
     assert changes[address2].nonce == 1
 
 
-def test_call_committing():
-    evm = EVM()
+@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+def test_call_committing(kwargs):
+    evm = EVM(**kwargs)
     evm.insert_account_info(
         address, AccountInfo(code=load_contract_bin("full_math.bin"))
     )
@@ -124,8 +145,9 @@ def test_call_committing():
     assert int.from_bytes(result, "big") == 171
 
 
-def test_call_empty_result():
-    evm = EVM()
+@pytest.mark.parametrize("kwargs", KWARG_OPTS)
+def test_call_empty_result(kwargs):
+    evm = EVM(**kwargs)
     evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
 
     evm.set_balance(address2, 10000)

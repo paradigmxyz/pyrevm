@@ -16,6 +16,21 @@ class BlockEnv:
         gas_limit: Optional[int] = None,
     ) -> "BlockEnv": ...
 
+    @property
+    def number(self) -> Optional[int]: ...
+    @property
+    def coinbase(self) -> Optional[str]: ...
+    @property
+    def timestamp(self) -> Optional[int]: ...
+    @property
+    def difficulty(self) -> Optional[int]: ...
+    @property
+    def prevrandao(self) -> Optional[bytes]: ...
+    @property
+    def basefee(self) -> Optional[int]: ...
+    @property
+    def gas_limit(self) -> Optional[int]: ...
+
 class TxEnv:
     def __new__(
         cls: Type["TxEnv"],
@@ -30,6 +45,25 @@ class TxEnv:
         nonce: Optional[int] = None,
     ) -> "TxEnv": ...
 
+    @property
+    def caller(self) -> Optional[str]: ...
+    @property
+    def gas_limit(self) -> Optional[int]: ...
+    @property
+    def gas_price(self) -> Optional[int]: ...
+    @property
+    def gas_priority_fee(self) -> Optional[int]: ...
+    @property
+    def to(self) -> Optional[str]: ...
+    @property
+    def value(self) -> Optional[int]: ...
+    @property
+    def data(self) -> Optional[bytes]: ...
+    @property
+    def chain_id(self) -> Optional[int]: ...
+    @property
+    def nonce(self) -> Optional[int]: ...
+
 class Env:
     def __new__(
         cls: Type["Env"],
@@ -37,8 +71,21 @@ class Env:
         block: Optional[BlockEnv] = None,
         tx: Optional[TxEnv] = None,
     ) -> "Env": ...
+    @property
+    def cfg(self: "AccountInfo") -> Optional[CfgEnv]: ...
+    @property
+    def block(self: "AccountInfo") -> Optional[BlockEnv]: ...
+    @property
+    def tx(self: "AccountInfo") -> Optional[TxEnv]: ...
 
 class AccountInfo:
+    def __new__(
+        cls: Type["AccountInfo"],
+        nonce: int = 0,
+        code_hash: Optional[bytes] = None,
+        code: Optional[bytes] = None,
+    ) -> "AccountInfo": ...
+
     @property
     def balance(self: "AccountInfo") -> int: ...
     @property
@@ -47,31 +94,13 @@ class AccountInfo:
     def code(self: "AccountInfo") -> bytes: ...
     @property
     def code_hash(self: "AccountInfo") -> bytes: ...
-    def __new__(
-        cls: Type["AccountInfo"],
-        nonce: int = 0,
-        code_hash: Optional[bytes] = None,
-        code: Optional[bytes] = None,
-    ) -> "AccountInfo": ...
-
-class EvmOpts:
-    env: Env
-    fork_url: Optional[str]
-    fork_block_number: Optional[int]
-    gas_limit: int
-    tracing: bool
-    def __new__(
-        cls: Type["EvmOpts"],
-        env: Optional[Env],
-        fork_url: Optional[str],
-    ) -> "EvmOpts": ...
 
 class EVM:
     def __new__(
         cls: Type["EVM"],
         env: Optional[Env] = None,
         fork_url: Optional[str] = None,
-        fork_block_number: Optional[int] = None,
+        fork_block_number: Optional[str] = None,
         gas_limit: int = 2**64 - 1,
         tracing: bool = False,
         spec_id="SHANGHAI",
@@ -109,7 +138,7 @@ class EVM:
         Processes a raw call, committing the result to the state.
         :param caller: The address of the caller.
         :param to: The address of the callee.
-        :param calldata: The calldata.
+        :param calldata: The data to pass to the contract.
         :param value: The value.
         :return: The return data.
         """
@@ -135,7 +164,15 @@ class EVM:
         deployer: str,
         code: bytes,
         value: Optional[int] = None,
-    ) -> str: ...
+    ) -> str:
+        """
+        Deploys the given code.
+        :param deployer: The address of the deployer.
+        :param code: The code.
+        :param value: The value.
+        :return: The address of the deployed contract.
+        """
+
     def get_balance(self: "EVM", address: str) -> int:
         """
         Returns the balance of the given address.
@@ -143,9 +180,21 @@ class EVM:
         :return: The balance.
         """
 
-    def set_balance(self: "EVM", address: str, balance: int) -> None
+    def set_balance(self: "EVM", address: str, balance: int) -> None:
         """
         Sets the balance of the given address.
         :param address: The address.
         :param balance: The balance.
         """
+
+    def storage(self: "EVM", address: str, index: int) -> int:
+        """
+        Returns the storage value of the given address at the given index.
+        :param address: The address.
+        :param index: The index.
+        :return: The storage value.
+        """
+
+    @property
+    def env(self: "EVM") -> Env:
+        """ Get the environment. """

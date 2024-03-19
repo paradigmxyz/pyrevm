@@ -1,9 +1,6 @@
 use crate::utils::{addr, addr_or_zero};
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyBytes};
-use revm::primitives::{
-    BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
-    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
-};
+use pyo3::{exceptions::PyTypeError, pyclass, pymethods, PyResult, types::PyBytes};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256};
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -19,6 +16,21 @@ impl Env {
             block: block.unwrap_or_default().into(),
             tx: tx.unwrap_or_default().into(),
         })
+    }
+
+    #[getter]
+    fn cfg(&self) -> CfgEnv {
+        self.0.cfg.clone().into()
+    }
+
+    #[getter]
+    fn block(&self) -> BlockEnv {
+        self.0.block.clone().into()
+    }
+
+    #[getter]
+    fn tx(&self) -> TxEnv {
+        self.0.tx.clone().into()
     }
 }
 
@@ -70,11 +82,65 @@ impl TxEnv {
             ..Default::default()
         }))
     }
+
+    #[getter]
+    fn caller(&self) -> String {
+        self.0.caller.to_string()
+    }
+
+    #[getter]
+    fn gas_limit(&self) -> u64 {
+        self.0.gas_limit
+    }
+
+    #[getter]
+    fn gas_price(&self) -> U256 {
+        self.0.gas_price
+    }
+
+    #[getter]
+    fn gas_priority_fee(&self) -> Option<U256> {
+        self.0.gas_priority_fee.map(Into::into)
+    }
+
+    #[getter]
+    fn to(&self) -> Option<String> {
+        match &self.0.transact_to {
+            TransactTo::Call(address) => Some(format!("{:?}", address)),
+            TransactTo::Create(_) => None,
+        }
+    }
+
+    #[getter]
+    fn value(&self) -> U256 {
+        self.0.value
+    }
+
+    #[getter]
+    fn data(&self) -> Vec<u8> {
+        self.0.data.to_vec()
+    }
+
+    #[getter]
+    fn chain_id(&self) -> Option<u64> {
+        self.0.chain_id
+    }
+
+    #[getter]
+    fn nonce(&self) -> Option<u64> {
+        self.0.nonce
+    }
 }
 
 impl From<TxEnv> for RevmTxEnv {
     fn from(env: TxEnv) -> Self {
         env.0
+    }
+}
+
+impl Into<TxEnv> for RevmTxEnv {
+    fn into(self) -> TxEnv {
+        TxEnv(self)
     }
 }
 
@@ -156,6 +222,12 @@ impl From<BlockEnv> for RevmBlockEnv {
     }
 }
 
+impl Into<BlockEnv> for RevmBlockEnv {
+    fn into(self) -> BlockEnv {
+        BlockEnv(self)
+    }
+}
+
 #[pyclass]
 #[derive(Default, Clone, Debug)]
 pub struct CfgEnv(RevmCfgEnv);
@@ -175,5 +247,11 @@ impl CfgEnv {
 impl From<CfgEnv> for RevmCfgEnv {
     fn from(env: CfgEnv) -> Self {
         env.0
+    }
+}
+
+impl Into<CfgEnv> for RevmCfgEnv {
+    fn into(self) -> CfgEnv {
+        CfgEnv(self)
     }
 }

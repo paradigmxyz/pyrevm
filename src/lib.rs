@@ -5,12 +5,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![allow(clippy::too_many_arguments)]
 
-// `pyo3` feature.
-use ruint as _;
-
-// Pinning `revm`.
-use revm_interpreter as _;
-
 use pyo3::prelude::*;
 
 mod types;
@@ -21,6 +15,7 @@ pub use evm::EVM;
 
 mod utils;
 mod empty_db_wrapper;
+mod database;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -28,7 +23,6 @@ fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
     // Types
     m.add_class::<AccountInfo>()?;
-    m.add_class::<EvmOpts>()?;
 
     m.add_class::<Env>()?;
     m.add_class::<CfgEnv>()?;
