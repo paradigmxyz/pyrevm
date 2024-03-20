@@ -140,7 +140,7 @@ class EVM:
         :param info: The account info.
         """
 
-    def call_raw(
+    def message_call(
         self: "EVM",
         caller: str,
         to: str,

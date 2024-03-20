@@ -41,7 +41,7 @@ vb_before = evm.basic(address)
 assert vb_before != 0
 
 # Execute the tx
-evm.call_raw(
+evm.message_call(
     caller=address,
     to=address2,
     value=10000

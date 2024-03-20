@@ -1,13 +1,45 @@
 use std::mem::replace;
 use pyo3::PyResult;
-use revm::{Context, Evm, EvmContext, FrameOrResult, FrameResult};
+use revm::{Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register};
+use revm::inspectors::TracerEip3155;
 use revm::primitives::{ExecutionResult};
 use revm::primitives::TransactTo;
 use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
+use revm_interpreter::primitives::HandlerCfg;
 use crate::database::DB;
 use crate::utils::pyerr;
 
-pub(crate) fn evm_call<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tracing: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+    let (result, evm_context) = if tracing {
+        let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}), true);
+        let evm = Evm::builder()
+            .with_context_with_handler_cfg(ContextWithHandlerCfg {
+                cfg: handler_cfg,
+                context: Context {
+                    evm: evm_context,
+                    external: tracer,
+                },
+            })
+            .append_handler_register(inspector_handle_register)
+            .build();
+        evm_call(evm)
+    } else {
+        let evm = Evm::builder()
+            .with_context_with_handler_cfg(ContextWithHandlerCfg {
+                cfg: handler_cfg,
+                context: Context {
+                    evm: evm_context,
+                    external: (),
+                },
+            })
+            .build();
+
+        evm_call(evm)
+    }?;
+    Ok((result, evm_context))
+}
+
+fn evm_call<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
     let initial_gas_spend = evm
         .handler

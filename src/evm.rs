@@ -4,8 +4,7 @@ use std::mem::replace;
 
 use pyo3::{pyclass, pymethods, PyResult};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
-use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
-use revm::inspectors::TracerEip3155;
+use revm::{Database, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
 use RevmExecutionResult::Success;
@@ -13,8 +12,7 @@ use tracing::trace;
 
 use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
 use crate::database::DB;
-use crate::executor::evm_call;
-use crate::pystdout::PySysStdout;
+use crate::executor::call_evm;
 use crate::types::{PyBytes, PyDB};
 use crate::utils::to_hashmap;
 
@@ -147,7 +145,7 @@ impl EVM {
     }
 
     #[pyo3(signature = (caller, to, calldata = None, value = None))]
-    pub fn call_raw(
+    pub fn message_call(
         &mut self,
         caller: &str,
         to: &str,
@@ -155,7 +153,7 @@ impl EVM {
         value: Option<U256>,
     ) -> PyResult<PyBytes> {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
-        match self.call_raw_with_env(env)
+        match self.call_with_env(env)
         {
             Ok(data) => Ok(data.to_vec()),
             Err(e) => Err(e),
@@ -271,7 +269,7 @@ impl EVM {
         }
     }
 
-    fn call_raw_with_env(&mut self, env: RevmEnv) -> PyResult<Bytes> {
+    fn call_with_env(&mut self, env: RevmEnv) -> PyResult<Bytes> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
             "Expect call transaction"
@@ -288,38 +286,11 @@ impl EVM {
     fn run_env(&mut self, env: RevmEnv) -> PyResult<RevmExecutionResult>
     {
         self.context.env = Box::new(env);
-
-        // temporarily take the context out of the EVM instance
         let evm_context: EvmContext<DB> = replace(&mut self.context, EvmContext::new(DB::new_memory()));
-
-        let (result, evm_context) = if self.tracing {
-            let tracer = TracerEip3155::new(Box::new(PySysStdout {}), true);
-            let evm = Evm::builder()
-                .with_context_with_handler_cfg(ContextWithHandlerCfg {
-                    cfg: self.handler_cfg,
-                    context: Context {
-                        evm: evm_context,
-                        external: tracer,
-                    },
-                })
-                .append_handler_register(inspector_handle_register)
-                .build();
-            evm_call(evm)
-        } else {
-            let evm = Evm::builder()
-                .with_context_with_handler_cfg(ContextWithHandlerCfg {
-                    cfg: self.handler_cfg,
-                    context: Context {
-                        evm: evm_context,
-                        external: (),
-                    },
-                })
-                .build();
-
-            evm_call(evm)
-        }?;
+        let (result, evm_context) = call_evm(evm_context, self.handler_cfg, self.tracing)?;
         self.context = evm_context;
         self.result = Some(result.clone());
         Ok(result)
     }
+
 }
