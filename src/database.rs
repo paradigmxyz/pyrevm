@@ -5,9 +5,9 @@ use ethers_core::types::BlockId;
 use ethers_providers::{Http, Provider};
 use pyo3::{PyErr, PyResult};
 use revm::Database;
-use revm::db::{CacheDB, EthersDB};
+use revm::db::{CacheDB, DbAccount, EthersDB};
 use revm::precompile::{Address, B256};
-use revm::primitives::{AccountInfo, Bytecode, State};
+use revm::primitives::{AccountInfo, Bytecode, HashMap, State};
 use revm_interpreter::primitives::db::{DatabaseCommit, DatabaseRef};
 use ruint::aliases::U256;
 
@@ -47,6 +47,13 @@ impl DB {
         match self {
             DB::Memory(db) => db.insert_account_info(address, info),
             DB::Fork(db) => db.insert_account_info(address, info),
+        }
+    }
+
+    pub(crate) fn get_accounts(&self) -> &HashMap<Address, DbAccount> {
+        match self {
+            DB::Memory(db) => &db.accounts,
+            DB::Fork(db) => &db.accounts,
         }
     }
 }

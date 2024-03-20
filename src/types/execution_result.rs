@@ -56,7 +56,6 @@ impl From<RevmExecutionResult> for ExecutionResult {
                     HaltReason::CallNotAllowedInsideStatic => String::from("CallNotAllowedInsideStatic"),
                     HaltReason::OutOfFunds => String::from("OutOfFunds"),
                     HaltReason::CallTooDeep => String::from("CallTooDeep"),
-                    _ => String::from("Unknown"),
                 }
             },
             gas_used: match result {

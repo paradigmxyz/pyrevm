@@ -1,23 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::mem::{replace};
+use std::mem::replace;
 
 use pyo3::{pyclass, PyErr, pymethods, PyResult};
-use pyo3::exceptions::{PyKeyError, PyOverflowError};
-use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
+use pyo3::exceptions::{PyKeyError};
+use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, inspector_handle_register, primitives::U256};
 use revm::DatabaseCommit;
 use revm::inspectors::TracerEip3155;
 use revm::precompile::{Address, Bytes};
-use revm::primitives::{ExecutionResult as RevmExecutionResult, BlockEnv, CreateScheme, Env as RevmEnv, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
+use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
 use revm::primitives::ExecutionResult::Success;
-use tracing::{trace};
+use tracing::trace;
 
-use crate::{types::{ExecutionResult, AccountInfo, Env, JournalCheckpoint}, utils::{addr, pydict, pyerr}};
+use crate::{types::{AccountInfo, Env, ExecutionResult}, utils::{addr, pydict, pyerr}};
 use crate::database::DB;
 use crate::pystdout::PySysStdout;
+use crate::types::{PyBytes, PyDB, Checkpoint};
+use crate::utils::to_hashmap;
 
-// In Py03 we use vec<u8> to represent bytes
-type PyBytes = Vec<u8>;
 
 #[derive(Debug)]
 #[pyclass]
@@ -37,8 +37,9 @@ pub struct EVM {
     tracing: bool,
 
     /// Checkpoints for reverting state
-    /// We cannot use Revm's checkpointing mechanism as it is not serializable
-    checkpoints: HashMap<JournalCheckpoint, RevmCheckpoint>,
+    /// We cannot use Revm's checkpointing mechanism as it is limited to transaction scope
+    checkpoints: HashMap<i32, DB>,
+    checkpoint: Checkpoint,
 
     /// The result of the last transaction
     result: Option<RevmExecutionResult>,
@@ -48,7 +49,7 @@ pub struct EVM {
 impl EVM {
     /// Create a new EVM instance.
     #[new]
-    #[pyo3(signature = (env = None, fork_url = None, fork_block_number = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "SHANGHAI"))]
+    #[pyo3(signature = (env = None, fork_url = None, fork_block_number = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST"))]
     fn new(
         env: Option<Env>,
         fork_url: Option<&str>,
@@ -71,40 +72,34 @@ impl EVM {
             handler_cfg: HandlerCfg::new(spec),
             tracing,
             checkpoints: HashMap::new(),
+            checkpoint: 0,
             result: None,
         })
     }
 
-    fn snapshot(&mut self) -> PyResult<JournalCheckpoint> {
-        let checkpoint = JournalCheckpoint {
-            log_i: self.context.journaled_state.logs.len(),
-            journal_i: self.context.journaled_state.journal.len(),
-        };
-        self.checkpoints.insert(checkpoint, self.context.journaled_state.checkpoint());
-        Ok(checkpoint)
+    fn snapshot(&mut self) -> PyResult<Checkpoint> {
+        self.checkpoint += 1;
+        self.checkpoints.insert(self.checkpoint, self.context.db.clone());
+        Ok(self.checkpoint)
     }
 
-    fn revert(&mut self, checkpoint: JournalCheckpoint) -> PyResult<()> {
-        if self.context.journaled_state.depth == 0 {
-            return Err(PyOverflowError::new_err(format!("No checkpoint to revert to: {:?}", self.context.journaled_state)));
-        }
-
-        if let Some(revm_checkpoint) = self.checkpoints.remove(&checkpoint) {
-            self.context.journaled_state.checkpoint_revert(revm_checkpoint);
+    fn revert(&mut self, checkpoint: Checkpoint) -> PyResult<()> {
+        if let Some(db) = self.checkpoints.remove(&checkpoint) {
+            self.context.db = db;
             Ok(())
         } else {
-            Err(PyKeyError::new_err("Invalid checkpoint"))
+            Err(PyKeyError::new_err(format!("Invalid checkpoint {0}", checkpoint)))
         }
     }
 
     fn commit(&mut self) {
-        self.context.journaled_state.checkpoint_commit();
+        self.checkpoints.clear();
     }
 
     /// Get basic account information.
     fn basic(&mut self, address: &str) -> PyResult<AccountInfo> {
-        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
-        Ok(account.info.clone().into())
+        let info = self.context.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
+        Ok(info.clone().into())
     }
 
     /// Get storage value of address at index.
@@ -129,22 +124,17 @@ impl EVM {
 
     /// Set the balance of a given address.
     fn set_balance(&mut self, address: &str, balance: U256) -> PyResult<()> {
-        let address_ = addr(address)?;
-        let account = {
-            let (account, _) = self.context.load_account(address_).map_err(pyerr)?;
-            account.info.balance = balance;
-            account.clone()
-        };
-        self.context.db.insert_account_info(address_, account.info.clone());
-        self.context.journaled_state.state.insert(address_, account);
-        self.context.journaled_state.touch(&address_);
+        let target = addr(address)?;
+        let mut info = self.context.db.basic(target).map_err(pyerr)?.unwrap_or_default().clone();
+        info.balance = balance;
+        self.context.db.insert_account_info(target, info);
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(&mut self, address: &str) -> PyResult<U256> {
-        let (balance, _) = self.context.balance(addr(address)?).map_err(pyerr)?;
-        Ok(balance)
+        let info = self.context.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
+        Ok(info.balance)
     }
 
     /// runs a raw call and returns the result
@@ -174,7 +164,7 @@ impl EVM {
         to: &str,
         calldata: Option<PyBytes>,
         value: Option<U256>,
-    ) -> PyResult<(PyBytes, HashMap<String, AccountInfo>)> {
+    ) -> PyResult<(PyBytes, PyDB)> {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
         match self.call_raw_with_env(env)
         {
@@ -218,13 +208,18 @@ impl EVM {
     }
 
     #[getter]
-    fn journal_depth(&self) -> usize {
-        self.context.journaled_state.depth
+    fn checkpoint_ids(&self) -> HashSet<Checkpoint> {
+        self.checkpoints.keys().cloned().collect()
     }
-    #[getter]
-    fn journal_len(&self) -> usize {
-        self.context.journaled_state.journal.len()
+
+    fn get_checkpoints(&self) -> HashMap<Checkpoint, PyDB> {
+        self.checkpoints.iter().map(|(k, db)| (*k, to_hashmap(db.get_accounts()))).collect()
     }
+
+    fn get_accounts(&self) -> PyDB {
+        to_hashmap(self.context.db.get_accounts())
+    }
+
 }
 
 impl EVM {
