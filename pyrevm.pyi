@@ -140,29 +140,13 @@ class EVM:
         :param info: The account info.
         """
 
-    def call_raw_committing(
-        self: "EVM",
-        caller: str,
-        to: str,
-        calldata: Optional[bytes] = None,
-        value: Optional[int] = None,
-    ) -> bytes:
-        """
-        Processes a raw call, committing the result to the state.
-        :param caller: The address of the caller.
-        :param to: The address of the callee.
-        :param calldata: The data to pass to the contract.
-        :param value: The value.
-        :return: The return data.
-        """
-
     def call_raw(
         self: "EVM",
         caller: str,
         to: str,
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
-    ) -> Tuple[bytes, dict[str, AccountInfo]]:
+    ) -> bytes:
         """
         Processes a raw call, without committing the result to the state.
         :param caller: The address of the caller.

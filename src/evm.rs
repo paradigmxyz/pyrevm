@@ -2,14 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem::replace;
 
-use pyo3::{pyclass, PyErr, pymethods, PyResult};
+use pyo3::{pyclass, pymethods, PyResult};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
 use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::DatabaseCommit;
 use revm::inspectors::TracerEip3155;
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
-use revm::primitives::ExecutionResult::Success;
+use RevmExecutionResult::Success;
 use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
 use tracing::trace;
 
@@ -147,9 +147,8 @@ impl EVM {
         Ok(balance)
     }
 
-    /// runs a raw call and returns the result
     #[pyo3(signature = (caller, to, calldata = None, value = None))]
-    pub fn call_raw_committing(
+    pub fn call_raw(
         &mut self,
         caller: &str,
         to: &str,
@@ -159,26 +158,7 @@ impl EVM {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
         match self.call_raw_with_env(env)
         {
-            Ok((data, state)) => {
-                self.context.db.commit(state);
-                Ok(data.to_vec())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    #[pyo3(signature = (caller, to, calldata = None, value = None))]
-    pub fn call_raw(
-        &mut self,
-        caller: &str,
-        to: &str,
-        calldata: Option<PyBytes>,
-        value: Option<U256>,
-    ) -> PyResult<(PyBytes, PyDB)> {
-        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
-        match self.call_raw_with_env(env)
-        {
-            Ok((data, state)) => Ok((data.to_vec(), pydict(state))),
+            Ok(data) => Ok(data.to_vec()),
             Err(e) => Err(e),
         }
     }
@@ -194,10 +174,7 @@ impl EVM {
         let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.unwrap_or_default().into(), value.unwrap_or_default());
         match self.deploy_with_env(env)
         {
-            Ok((address, state)) => {
-                self.context.db.commit(state);
-                Ok(format!("{:?}", address))
-            }
+            Ok(address) => Ok(format!("{:?}", address)),
             Err(e) => Err(e),
         }
     }
@@ -275,20 +252,20 @@ impl EVM {
 
     /// Deploys a contract using the given `env` and commits the new state to the underlying
     /// database
-    fn deploy_with_env(&mut self, env: RevmEnv) -> PyResult<(Address, State)> {
+    fn deploy_with_env(&mut self, env: RevmEnv) -> PyResult<Address> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Create(_)),
             "Expect create transaction"
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let ResultAndState { result, state } = self.run_env(env)?;
+        let result = self.run_env(env)?;
 
         match &result {
             Success { output, .. } => {
                 match output {
                     Output::Create(_, address) => {
-                        Ok((address.unwrap(), state))
+                        Ok(address.unwrap())
                     }
                     _ => Err(pyerr("Invalid output")),
                 }
@@ -297,33 +274,28 @@ impl EVM {
         }
     }
 
-    fn call_raw_with_env(&mut self, env: RevmEnv) -> PyResult<(Bytes, State)> {
+    fn call_raw_with_env(&mut self, env: RevmEnv) -> PyResult<Bytes> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
             "Expect call transaction"
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let ResultAndState { result, state } = self.run_env(env)?;
-
+        let result = self.run_env(env)?;
         match &result {
-            Success { output, .. } => {
-                let data = output.clone().into_data();
-                Ok((data, state))
-            }
-            // todo: state might have changed even if the call failed
+            Success { output, .. } => Ok(output.clone().into_data()),
             _ => Err(pyerr(result.clone())),
         }
     }
 
-    fn run_env(&mut self, env: RevmEnv) -> Result<ResultAndState, PyErr>
+    fn run_env(&mut self, env: RevmEnv) -> PyResult<RevmExecutionResult>
     {
         self.context.env = Box::new(env);
 
         // temporarily take the context out of the EVM instance
         let evm_context: EvmContext<DB> = replace(&mut self.context, EvmContext::new(DB::new_memory()));
 
-        let (result_and_state, evm_context) = if self.tracing {
+        let (result, evm_context) = if self.tracing {
             let tracer = TracerEip3155::new(Box::new(PySysStdout {}), true);
             let mut evm = Evm::builder()
                 .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -351,11 +323,11 @@ impl EVM {
             (Self::call(&mut evm)?, evm.context.evm)
         };
         self.context = evm_context;
-        self.result = Some(result_and_state.result.clone());
-        Ok(result_and_state)
+        self.result = Some(result.clone());
+        Ok(result)
     }
     
-    fn call<EXT>(evm: &mut Evm<'_, EXT, DB>) -> PyResult<ResultAndState> {
+    fn call<EXT>(evm: &mut Evm<'_, EXT, DB>) -> PyResult<RevmExecutionResult> {
         evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
         let initial_gas_spend = evm
             .handler
@@ -367,11 +339,10 @@ impl EVM {
             .tx_against_state(&mut evm.context)
             .map_err(pyerr)?;
 
-        let output = Self::transact_preverified_inner(evm, initial_gas_spend)?;
-        Ok(evm.handler.post_execution().end(&mut evm.context, Ok(output)).map_err(pyerr)?)
+        Self::transact_preverified_inner(evm, initial_gas_spend)
     }
 
-    fn transact_preverified_inner<EXT>(evm: &mut Evm<'_, EXT, DB>, initial_gas_spend: u64) -> PyResult<ResultAndState> {
+    fn transact_preverified_inner<EXT>(evm: &mut Evm<'_, EXT, DB>, initial_gas_spend: u64) -> PyResult<RevmExecutionResult> {
         let ctx = &mut evm.context;
         let pre_exec = evm.handler.pre_execution();
 
@@ -428,7 +399,7 @@ impl EVM {
     fn output<EXT>(
         context: &mut Context<EXT, DB>,
         result: FrameResult,
-    ) -> PyResult<ResultAndState> {
+    ) -> PyResult<RevmExecutionResult> {
         replace(&mut context.evm.error, Ok(())).map_err(pyerr)?;
         // used gas with refund calculated.
         let gas_refunded = result.gas().refunded() as u64;
@@ -436,22 +407,19 @@ impl EVM {
         let output = result.output();
         let instruction_result = result.into_interpreter_result();
 
-        // reset journal and return present state.
-        let (state, logs) = context.evm.journaled_state.finalize();
-
         let result = match instruction_result.result.into() {
             SuccessOrHalt::Success(reason) => Success {
                 reason,
                 gas_used: final_gas_used,
                 gas_refunded,
-                logs,
+                logs: vec![], // todo: logs
                 output,
             },
-            SuccessOrHalt::Revert => revm::primitives::ExecutionResult::Revert {
+            SuccessOrHalt::Revert => RevmExecutionResult::Revert {
                 gas_used: final_gas_used,
                 output: output.into_data(),
             },
-            SuccessOrHalt::Halt(reason) => revm::primitives::ExecutionResult::Halt {
+            SuccessOrHalt::Halt(reason) => RevmExecutionResult::Halt {
                 reason,
                 gas_used: final_gas_used,
             },
@@ -463,6 +431,6 @@ impl EVM {
             }
         };
 
-        Ok(ResultAndState { result, state })
+        Ok(result)
     }
 }

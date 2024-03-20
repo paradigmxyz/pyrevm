@@ -48,7 +48,7 @@ def test_revm_fork():
     assert vb_before is not None
 
     # Execute the tx
-    evm.call_raw_committing(
+    evm.call_raw(
         caller=address,
         to=address2,
         value=10000
@@ -114,7 +114,7 @@ def test_call_raw(kwargs):
     assert evm.basic(address).code == info.code
 
     # mulDiv() -> 64 * 8 / 2
-    result, changes = evm.call_raw(
+    result = evm.call_raw(
         caller=address2,
         to=address,
         calldata=bytes.fromhex(
@@ -123,8 +123,6 @@ def test_call_raw(kwargs):
     )
 
     assert int.from_bytes(result, "big") == 256
-    assert changes[address].nonce == 0
-    assert changes[address2].nonce == 1
 
 
 @pytest.mark.parametrize("kwargs", KWARG_CASES)
@@ -135,7 +133,7 @@ def test_call_committing(kwargs):
     )
 
     # mulDivRoundingUp() -> 64 * 8 / 3
-    result = evm.call_raw_committing(
+    result = evm.call_raw(
         caller=address2,
         to=address,
         calldata=bytes.fromhex(
@@ -152,7 +150,7 @@ def test_call_revert():
     evm.set_balance(address2, amount)
 
     snapshot = evm.snapshot()
-    evm.call_raw_committing(
+    evm.call_raw(
         caller=address2,
         to=address,
         value=amount,
@@ -171,7 +169,7 @@ def test_call_empty_result(kwargs):
 
     evm.set_balance(address2, 10000)
 
-    deposit = evm.call_raw_committing(
+    deposit = evm.call_raw(
         caller=address2,
         to=address,
         value=10000,
@@ -180,7 +178,7 @@ def test_call_empty_result(kwargs):
 
     assert deposit == []
 
-    balance, _ = evm.call_raw(
+    balance = evm.call_raw(
         caller=address2,
         to=address,
         calldata=bytes.fromhex("70a08231" + encode_address(address2)),
@@ -194,7 +192,7 @@ def test_tracing(capsys):
     evm = EVM(tracing=True)
     evm.insert_account_info(address, AccountInfo(code=load_contract_bin("weth_9.bin")))
     evm.set_balance(address2, 10000)
-    evm.call_raw_committing(
+    evm.call_raw(
         caller=address2,
         to=address,
         value=10000,
