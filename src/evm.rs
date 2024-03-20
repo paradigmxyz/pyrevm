@@ -4,17 +4,16 @@ use std::mem::replace;
 
 use pyo3::{pyclass, pymethods, PyResult};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
-use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
-use revm::DatabaseCommit;
+use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::inspectors::TracerEip3155;
 use revm::precompile::{Address, Bytes};
-use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
+use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
 use RevmExecutionResult::Success;
-use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
 use tracing::trace;
 
-use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pydict, pyerr}};
+use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
 use crate::database::DB;
+use crate::executor::evm_call;
 use crate::pystdout::PySysStdout;
 use crate::types::{PyBytes, PyDB};
 use crate::utils::to_hashmap;
@@ -264,10 +263,8 @@ impl EVM {
         match &result {
             Success { output, .. } => {
                 match output {
-                    Output::Create(_, address) => {
-                        Ok(address.unwrap())
-                    }
-                    _ => Err(pyerr("Invalid output")),
+                    Output::Create(_, address) => Ok(address.unwrap()),
+                    _ => Err(pyerr(output.clone())),
                 }
             }
             _ => Err(pyerr(result.clone())),
@@ -297,7 +294,7 @@ impl EVM {
 
         let (result, evm_context) = if self.tracing {
             let tracer = TracerEip3155::new(Box::new(PySysStdout {}), true);
-            let mut evm = Evm::builder()
+            let evm = Evm::builder()
                 .with_context_with_handler_cfg(ContextWithHandlerCfg {
                     cfg: self.handler_cfg,
                     context: Context {
@@ -307,10 +304,9 @@ impl EVM {
                 })
                 .append_handler_register(inspector_handle_register)
                 .build();
-
-            (Self::call(&mut evm)?, evm.context.evm)
+            evm_call(evm)
         } else {
-            let mut evm = Evm::builder()
+            let evm = Evm::builder()
                 .with_context_with_handler_cfg(ContextWithHandlerCfg {
                     cfg: self.handler_cfg,
                     context: Context {
@@ -320,117 +316,10 @@ impl EVM {
                 })
                 .build();
 
-            (Self::call(&mut evm)?, evm.context.evm)
-        };
+            evm_call(evm)
+        }?;
         self.context = evm_context;
         self.result = Some(result.clone());
-        Ok(result)
-    }
-    
-    fn call<EXT>(evm: &mut Evm<'_, EXT, DB>) -> PyResult<RevmExecutionResult> {
-        evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
-        let initial_gas_spend = evm
-            .handler
-            .validation()
-            .initial_tx_gas(&evm.context.evm.env)
-            .map_err(pyerr)?;
-        evm.handler
-            .validation()
-            .tx_against_state(&mut evm.context)
-            .map_err(pyerr)?;
-
-        Self::transact_preverified_inner(evm, initial_gas_spend)
-    }
-
-    fn transact_preverified_inner<EXT>(evm: &mut Evm<'_, EXT, DB>, initial_gas_spend: u64) -> PyResult<RevmExecutionResult> {
-        let ctx = &mut evm.context;
-        let pre_exec = evm.handler.pre_execution();
-
-        // load access list and beneficiary if needed.
-        pre_exec.load_accounts(ctx).map_err(pyerr)?;
-
-        // load precompiles
-        let precompiles = pre_exec.load_precompiles();
-        ctx.evm.set_precompiles(precompiles);
-
-        // deduce caller balance with its limit.
-        pre_exec.deduct_caller(ctx).map_err(pyerr)?;
-
-        let gas_limit = ctx.evm.env.tx.gas_limit - initial_gas_spend;
-
-        let exec = evm.handler.execution();
-        // call inner handling of call/create
-        let first_frame_or_result = match ctx.evm.env.tx.transact_to {
-            TransactTo::Call(_) => exec.call(
-                ctx,
-                CallInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
-            ).map_err(pyerr)?,
-            TransactTo::Create(_) => exec.create(
-                ctx,
-                CreateInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
-            ).map_err(pyerr)?,
-        };
-
-        // Starts the main running loop.
-        let mut result = match first_frame_or_result {
-            FrameOrResult::Frame(first_frame) => evm.start_the_loop(first_frame).map_err(pyerr)?,
-            FrameOrResult::Result(result) => result,
-        };
-
-        let ctx = &mut evm.context;
-
-        // handle output of call/create calls.
-        evm.handler
-            .execution()
-            .last_frame_return(ctx, &mut result)
-            .map_err(pyerr)?;
-
-        let post_exec = evm.handler.post_execution();
-        // Reimburse the caller
-        post_exec.reimburse_caller(ctx, result.gas()).map_err(pyerr)?;
-        // Reward beneficiary
-        post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
-        // Returns output of transaction.
-        Self::output(ctx, result)
-    }
-
-    /// Main return handle, returns the output of the transaction.
-    #[inline]
-    fn output<EXT>(
-        context: &mut Context<EXT, DB>,
-        result: FrameResult,
-    ) -> PyResult<RevmExecutionResult> {
-        replace(&mut context.evm.error, Ok(())).map_err(pyerr)?;
-        // used gas with refund calculated.
-        let gas_refunded = result.gas().refunded() as u64;
-        let final_gas_used = result.gas().spend() - gas_refunded;
-        let output = result.output();
-        let instruction_result = result.into_interpreter_result();
-
-        let result = match instruction_result.result.into() {
-            SuccessOrHalt::Success(reason) => Success {
-                reason,
-                gas_used: final_gas_used,
-                gas_refunded,
-                logs: vec![], // todo: logs
-                output,
-            },
-            SuccessOrHalt::Revert => RevmExecutionResult::Revert {
-                gas_used: final_gas_used,
-                output: output.into_data(),
-            },
-            SuccessOrHalt::Halt(reason) => RevmExecutionResult::Halt {
-                reason,
-                gas_used: final_gas_used,
-            },
-            // Only two internal return flags.
-            SuccessOrHalt::FatalExternalError
-            | SuccessOrHalt::InternalContinue
-            | SuccessOrHalt::InternalCallOrCreate => {
-                panic!("Internal return flags should remain internal {instruction_result:?}")
-            }
-        };
-
         Ok(result)
     }
 }

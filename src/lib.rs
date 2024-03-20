@@ -17,6 +17,7 @@ mod utils;
 mod empty_db_wrapper;
 mod database;
 mod pystdout;
+mod executor;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
