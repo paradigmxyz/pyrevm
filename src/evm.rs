@@ -3,21 +3,21 @@ use std::fmt::Debug;
 use std::mem::replace;
 
 use pyo3::{pyclass, PyErr, pymethods, PyResult};
-use pyo3::exceptions::{PyKeyError};
-use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, inspector_handle_register, primitives::U256};
+use pyo3::exceptions::{PyKeyError, PyOverflowError};
+use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, FrameOrResult, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::DatabaseCommit;
 use revm::inspectors::TracerEip3155;
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
 use revm::primitives::ExecutionResult::Success;
+use revm_interpreter::{CallInputs, CreateInputs};
 use tracing::trace;
 
-use crate::{types::{AccountInfo, Env, ExecutionResult}, utils::{addr, pydict, pyerr}};
+use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pydict, pyerr}};
 use crate::database::DB;
 use crate::pystdout::PySysStdout;
-use crate::types::{PyBytes, PyDB, Checkpoint};
+use crate::types::{PyBytes, PyDB};
 use crate::utils::to_hashmap;
-
 
 #[derive(Debug)]
 #[pyclass]
@@ -37,9 +37,8 @@ pub struct EVM {
     tracing: bool,
 
     /// Checkpoints for reverting state
-    /// We cannot use Revm's checkpointing mechanism as it is limited to transaction scope
-    checkpoints: HashMap<i32, DB>,
-    checkpoint: Checkpoint,
+    /// We cannot use Revm's checkpointing mechanism as it is not serializable
+    checkpoints: HashMap<JournalCheckpoint, RevmCheckpoint>,
 
     /// The result of the last transaction
     result: Option<RevmExecutionResult>,
@@ -72,34 +71,40 @@ impl EVM {
             handler_cfg: HandlerCfg::new(spec),
             tracing,
             checkpoints: HashMap::new(),
-            checkpoint: 0,
             result: None,
         })
     }
 
-    fn snapshot(&mut self) -> PyResult<Checkpoint> {
-        self.checkpoint += 1;
-        self.checkpoints.insert(self.checkpoint, self.context.db.clone());
-        Ok(self.checkpoint)
+    fn snapshot(&mut self) -> PyResult<JournalCheckpoint> {
+        let checkpoint = JournalCheckpoint {
+            log_i: self.context.journaled_state.logs.len(),
+            journal_i: self.context.journaled_state.journal.len(),
+        };
+        self.checkpoints.insert(checkpoint, self.context.journaled_state.checkpoint());
+        Ok(checkpoint)
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> PyResult<()> {
-        if let Some(db) = self.checkpoints.remove(&checkpoint) {
-            self.context.db = db;
+    fn revert(&mut self, checkpoint: JournalCheckpoint) -> PyResult<()> {
+        if self.context.journaled_state.depth == 0 {
+            return Err(PyOverflowError::new_err(format!("No checkpoint to revert to: {:?}", self.context.journaled_state)));
+        }
+
+        if let Some(revm_checkpoint) = self.checkpoints.remove(&checkpoint) {
+            self.context.journaled_state.checkpoint_revert(revm_checkpoint);
             Ok(())
         } else {
-            Err(PyKeyError::new_err(format!("Invalid checkpoint {0}", checkpoint)))
+            Err(PyKeyError::new_err("Invalid checkpoint"))
         }
     }
 
     fn commit(&mut self) {
-        self.checkpoints.clear();
+        self.context.journaled_state.checkpoint_commit();
     }
 
     /// Get basic account information.
     fn basic(&mut self, address: &str) -> PyResult<AccountInfo> {
-        let info = self.context.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
-        Ok(info.clone().into())
+        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(account.info.clone().into())
     }
 
     /// Get storage value of address at index.
@@ -124,17 +129,22 @@ impl EVM {
 
     /// Set the balance of a given address.
     fn set_balance(&mut self, address: &str, balance: U256) -> PyResult<()> {
-        let target = addr(address)?;
-        let mut info = self.context.db.basic(target).map_err(pyerr)?.unwrap_or_default().clone();
-        info.balance = balance;
-        self.context.db.insert_account_info(target, info);
+        let address_ = addr(address)?;
+        let account = {
+            let (account, _) = self.context.load_account(address_).map_err(pyerr)?;
+            account.info.balance = balance;
+            account.clone()
+        };
+        self.context.db.insert_account_info(address_, account.info.clone());
+        self.context.journaled_state.state.insert(address_, account);
+        self.context.journaled_state.touch(&address_);
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
     fn get_balance(&mut self, address: &str) -> PyResult<U256> {
-        let info = self.context.db.basic(addr(address)?).map_err(pyerr)?.unwrap_or_default();
-        Ok(info.balance)
+        let (balance, _) = self.context.balance(addr(address)?).map_err(pyerr)?;
+        Ok(balance)
     }
 
     /// runs a raw call and returns the result
@@ -208,12 +218,17 @@ impl EVM {
     }
 
     #[getter]
-    fn checkpoint_ids(&self) -> HashSet<Checkpoint> {
+    fn checkpoint_ids(&self) -> HashSet<JournalCheckpoint> {
         self.checkpoints.keys().cloned().collect()
     }
 
-    fn get_checkpoints(&self) -> HashMap<Checkpoint, PyDB> {
-        self.checkpoints.iter().map(|(k, db)| (*k, to_hashmap(db.get_accounts()))).collect()
+    #[getter]
+    fn journal_depth(&self) -> usize {
+        self.context.journaled_state.depth
+    }
+    #[getter]
+    fn journal_len(&self) -> usize {
+        self.context.journaled_state.journal.len()
     }
 
     fn get_accounts(&self) -> PyDB {
@@ -321,7 +336,7 @@ impl EVM {
                 .append_handler_register(inspector_handle_register)
                 .build();
 
-            (evm.transact().map_err(pyerr)?, evm.context.evm)
+            (Self::call(&mut evm)?, evm.context.evm)
         } else {
             let mut evm = Evm::builder()
                 .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -333,10 +348,79 @@ impl EVM {
                 })
                 .build();
 
-            (evm.transact().map_err(pyerr)?, evm.context.evm)
+            (Self::call(&mut evm)?, evm.context.evm)
         };
         self.context = evm_context;
         self.result = Some(result_and_state.result.clone());
         Ok(result_and_state)
+    }
+    
+    fn call<T>(evm: &mut Evm<'_, T, DB>) -> PyResult<ResultAndState> {
+        evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
+        let initial_gas_spend = evm
+            .handler
+            .validation()
+            .initial_tx_gas(&evm.context.evm.env)
+            .map_err(pyerr)?;
+        evm.handler
+            .validation()
+            .tx_against_state(&mut evm.context)
+            .map_err(pyerr)?;
+
+        let output = Self::transact_preverified_inner(evm, initial_gas_spend)?;
+        Ok(output)
+        // Ok(evm.handler.post_execution().end(&mut evm.context, Ok(output)).map_err(pyerr)?)
+    }
+
+    fn transact_preverified_inner<T>(evm: &mut Evm<'_, T, DB>, initial_gas_spend: u64) -> PyResult<ResultAndState> {
+        let ctx = &mut evm.context;
+        let pre_exec = evm.handler.pre_execution();
+
+        // load access list and beneficiary if needed.
+        pre_exec.load_accounts(ctx).map_err(pyerr)?;
+
+        // load precompiles
+        let precompiles = pre_exec.load_precompiles();
+        ctx.evm.set_precompiles(precompiles);
+
+        // deduce caller balance with its limit.
+        pre_exec.deduct_caller(ctx).map_err(pyerr)?;
+
+        let gas_limit = ctx.evm.env.tx.gas_limit - initial_gas_spend;
+
+        let exec = evm.handler.execution();
+        // call inner handling of call/create
+        let first_frame_or_result = match ctx.evm.env.tx.transact_to {
+            TransactTo::Call(_) => exec.call(
+                ctx,
+                CallInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
+            ).map_err(pyerr)?,
+            TransactTo::Create(_) => exec.create(
+                ctx,
+                CreateInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
+            ).map_err(pyerr)?,
+        };
+
+        // Starts the main running loop.
+        let mut result = match first_frame_or_result {
+            FrameOrResult::Frame(first_frame) => evm.start_the_loop(first_frame).map_err(pyerr)?,
+            FrameOrResult::Result(result) => result,
+        };
+
+        let ctx = &mut evm.context;
+
+        // handle output of call/create calls.
+        evm.handler
+            .execution()
+            .last_frame_return(ctx, &mut result)
+            .map_err(pyerr)?;
+
+        let post_exec = evm.handler.post_execution();
+        // Reimburse the caller
+        post_exec.reimburse_caller(ctx, result.gas()).map_err(pyerr)?;
+        // Reward beneficiary
+        post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
+        // Returns output of transaction.
+        post_exec.output(ctx, result).map_err(pyerr)
     }
 }
