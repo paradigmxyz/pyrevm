@@ -4,7 +4,6 @@ use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv a
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
-
 pub struct Env(RevmEnv);
 
 #[pymethods]

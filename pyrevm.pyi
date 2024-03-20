@@ -78,6 +78,14 @@ class Env:
     @property
     def tx(self: "AccountInfo") -> Optional[TxEnv]: ...
 
+
+class JournalCheckpoint:
+    @property
+    def log_i(self) -> int: ...
+    @property
+    def journal_i(self) -> int: ...
+
+
 class AccountInfo:
     def __new__(
         cls: Type["AccountInfo"],
@@ -112,6 +120,11 @@ class EVM:
         :param tracing: Whether to enable tracing.
         :param spec_id: The spec ID.
         """
+
+    def snapshot(self: "EVM") -> JournalCheckpoint: ...
+
+    def revert(self: "EVM", checkpoint: JournalCheckpoint) -> None: ...
+    def commit(self: "EVM") -> None: ...
 
     def basic(self: "EVM", address: str) -> AccountInfo:
         """

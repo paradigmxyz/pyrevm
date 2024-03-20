@@ -99,11 +99,11 @@ def test_balances_fork():
     vb_before = evm.basic(address)
     assert vb_before.balance == 955628344913799071315
 
-    AMT = 10000
-    evm.set_balance(address, AMT)
+    amount = 10000
+    evm.set_balance(address, amount)
 
-    assert evm.get_balance(address) == AMT
-    assert evm.basic(address).balance == AMT
+    assert evm.get_balance(address) == amount
+    assert evm.basic(address).balance == amount
 
 
 @pytest.mark.parametrize("kwargs", KWARG_CASES)
@@ -144,6 +144,24 @@ def test_call_committing(kwargs):
     )
 
     assert int.from_bytes(result, "big") == 171
+
+
+def test_call_revert():
+    evm = EVM()
+    amount = 10000
+    evm.set_balance(address2, amount)
+
+    snapshot = evm.snapshot()
+    evm.call_raw_committing(
+        caller=address2,
+        to=address,
+        value=amount,
+    )
+
+    assert evm.get_balance(address) == amount
+    evm.revert(snapshot)
+    assert evm.get_balance(address) == 0
+    assert evm.get_balance(address2) == amount
 
 
 @pytest.mark.parametrize("kwargs", KWARG_CASES)
