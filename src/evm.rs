@@ -4,13 +4,13 @@ use std::mem::replace;
 
 use pyo3::{pyclass, PyErr, pymethods, PyResult};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
-use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, FrameOrResult, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
+use revm::{Context, ContextWithHandlerCfg, Database, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::DatabaseCommit;
 use revm::inspectors::TracerEip3155;
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, ResultAndState, SpecId, State, TransactTo, TxEnv};
 use revm::primitives::ExecutionResult::Success;
-use revm_interpreter::{CallInputs, CreateInputs};
+use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
 use tracing::trace;
 
 use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pydict, pyerr}};
@@ -355,7 +355,7 @@ impl EVM {
         Ok(result_and_state)
     }
     
-    fn call<T>(evm: &mut Evm<'_, T, DB>) -> PyResult<ResultAndState> {
+    fn call<EXT>(evm: &mut Evm<'_, EXT, DB>) -> PyResult<ResultAndState> {
         evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
         let initial_gas_spend = evm
             .handler
@@ -368,11 +368,10 @@ impl EVM {
             .map_err(pyerr)?;
 
         let output = Self::transact_preverified_inner(evm, initial_gas_spend)?;
-        Ok(output)
-        // Ok(evm.handler.post_execution().end(&mut evm.context, Ok(output)).map_err(pyerr)?)
+        Ok(evm.handler.post_execution().end(&mut evm.context, Ok(output)).map_err(pyerr)?)
     }
 
-    fn transact_preverified_inner<T>(evm: &mut Evm<'_, T, DB>, initial_gas_spend: u64) -> PyResult<ResultAndState> {
+    fn transact_preverified_inner<EXT>(evm: &mut Evm<'_, EXT, DB>, initial_gas_spend: u64) -> PyResult<ResultAndState> {
         let ctx = &mut evm.context;
         let pre_exec = evm.handler.pre_execution();
 
@@ -421,6 +420,49 @@ impl EVM {
         // Reward beneficiary
         post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
         // Returns output of transaction.
-        post_exec.output(ctx, result).map_err(pyerr)
+        Self::output(ctx, result)
+    }
+
+    /// Main return handle, returns the output of the transaction.
+    #[inline]
+    fn output<EXT>(
+        context: &mut Context<EXT, DB>,
+        result: FrameResult,
+    ) -> PyResult<ResultAndState> {
+        replace(&mut context.evm.error, Ok(())).map_err(pyerr)?;
+        // used gas with refund calculated.
+        let gas_refunded = result.gas().refunded() as u64;
+        let final_gas_used = result.gas().spend() - gas_refunded;
+        let output = result.output();
+        let instruction_result = result.into_interpreter_result();
+
+        // reset journal and return present state.
+        let (state, logs) = context.evm.journaled_state.finalize();
+
+        let result = match instruction_result.result.into() {
+            SuccessOrHalt::Success(reason) => Success {
+                reason,
+                gas_used: final_gas_used,
+                gas_refunded,
+                logs,
+                output,
+            },
+            SuccessOrHalt::Revert => revm::primitives::ExecutionResult::Revert {
+                gas_used: final_gas_used,
+                output: output.into_data(),
+            },
+            SuccessOrHalt::Halt(reason) => revm::primitives::ExecutionResult::Halt {
+                reason,
+                gas_used: final_gas_used,
+            },
+            // Only two internal return flags.
+            SuccessOrHalt::FatalExternalError
+            | SuccessOrHalt::InternalContinue
+            | SuccessOrHalt::InternalCallOrCreate => {
+                panic!("Internal return flags should remain internal {instruction_result:?}")
+            }
+        };
+
+        Ok(ResultAndState { result, state })
     }
 }
