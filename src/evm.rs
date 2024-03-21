@@ -190,7 +190,7 @@ impl EVM {
         let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.unwrap_or_default().into(), value.unwrap_or_default());
         match self.deploy_with_env(env)
         {
-            Ok(address) => Ok(format!("{:?}", address)),
+            Ok((_, address)) => Ok(format!("{:?}", address)),
             Err(e) => Err(e),
         }
     }
@@ -284,7 +284,7 @@ impl EVM {
 
     /// Deploys a contract using the given `env` and commits the new state to the underlying
     /// database
-    fn deploy_with_env(&mut self, env: RevmEnv) -> PyResult<Address> {
+    fn deploy_with_env(&mut self, env: RevmEnv) -> PyResult<(Bytes, Address)> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Create(_)),
             "Expect create transaction"
@@ -295,7 +295,7 @@ impl EVM {
 
         if let Success { output, .. } = result {
             match output {
-                Output::Create(_, address) => Ok(address.unwrap()),
+                Output::Create(out, address) => Ok((out, address.unwrap())),
                 _ => Err(pyerr(output.clone())),
             }
         } else {

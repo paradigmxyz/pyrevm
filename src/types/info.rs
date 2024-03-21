@@ -27,8 +27,8 @@ impl AccountInfo {
     }
 
     #[getter]
-    fn code_hash(_self: PyRef<'_, Self>) -> [u8; 32] {
-        _self.0.code_hash.0
+    fn code_hash(_self: PyRef<'_, Self>, py: Python<'_>) -> PyObject {
+        PyBytes::new(py, &_self.0.code_hash.0).into()
     }
 
     #[new]

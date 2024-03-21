@@ -65,17 +65,26 @@ def test_revm_fork():
 def test_deploy():
     evm = EVM()
 
-    vb_before = evm.basic(address)
-    assert vb_before is not None
-    assert vb_before.nonce == 0
+    account_before = evm.basic(address)
+    assert account_before is not None
+    assert account_before.nonce == 0
+    assert account_before.code == b"\0"
 
     # Deploy the contract
-    code = bytes.fromhex("6060")
+    code = load_contract_bin("blueprint.bin")
     deployed_at = evm.deploy(address, code)
 
     assert deployed_at == "0x3e4ea2156166390f880071d94458efb098473311"
     deployed_code = evm.get_code(deployed_at)
-    assert deployed_code == code
+    assert deployed_code.hex().rstrip('0') in code.hex()
+    assert evm.basic(deployed_at).code.hex() == deployed_code.hex()
+
+    result = evm.message_call(
+        address,
+        deployed_at,
+        calldata=b'\xc2\x98Ux'  # ==method_id('foo()')
+    )
+    assert int(result.hex(), 16) == 123
 
 
 def test_balances():
@@ -221,4 +230,4 @@ def test_blueprint():
     deploy_bytecode = deploy_preamble + bytecode
 
     deployer_address = evm.deploy(address, deploy_bytecode)
-    assert evm.basic(address).code == deploy_bytecode
+    assert evm.basic(deployer_address).code.hex().rstrip('0') in deploy_bytecode.hex()

@@ -23,7 +23,7 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
             })
             .append_handler_register(inspector_handle_register)
             .build();
-        evm_call(evm)
+        run_evm(evm)
     } else {
         let evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -34,12 +34,12 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
                 },
             })
             .build();
-        evm_call(evm)
+        run_evm(evm)
     }
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn evm_call<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
     let initial_gas_spend = evm
         .handler
