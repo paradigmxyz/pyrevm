@@ -22,13 +22,13 @@ type ForkDB = CacheDB<EthersDB<Provider<Http>>>;
 /// without needing dynamic lifetime and generic parameters (unsupported in PyO3)
 #[derive(Clone, Debug)]
 pub(crate) enum DB {
-    Memory(Box<MemDB>),
-    Fork(Box<ForkDB>),
+    Memory(MemDB),
+    Fork(ForkDB),
 }
 
 impl DB {
     pub(crate) fn new_memory() -> Self {
-        DB::Memory(Box::new(MemDB::new(EmptyDBWrapper::default())))
+        DB::Memory(MemDB::new(EmptyDBWrapper::default()))
     }
 
     pub(crate) fn new_fork(
@@ -39,7 +39,7 @@ impl DB {
         let block = fork_block_number.map(|n| BlockId::from_str(n)).map_or(Ok(None), |v| v.map(Some)).map_err(pyerr)?;
         let db = EthersDB::new(Arc::new(provider), block).unwrap();
         // todo: do we need to get the blockEnv from the client?
-        Ok(DB::Fork(Box::new(CacheDB::new(db))))
+        Ok(DB::Fork(CacheDB::new(db)))
     }
 
     /// Insert account info but not override storage
