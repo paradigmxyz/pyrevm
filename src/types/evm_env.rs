@@ -1,5 +1,5 @@
 use crate::utils::{addr, addr_or_zero};
-use pyo3::{exceptions::PyTypeError, pyclass, pymethods, PyResult, types::PyBytes};
+use pyo3::{exceptions::PyTypeError, pyclass, pymethods, PyObject, PyResult, Python, types::{PyBytes}};
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256};
 
 #[pyclass]
@@ -116,8 +116,8 @@ impl TxEnv {
     }
 
     #[getter]
-    fn data(&self) -> Vec<u8> {
-        self.0.data.to_vec()
+    fn data(&self, py: Python<'_>) -> PyObject {
+        PyBytes::new(py, &self.0.data.to_vec()).into()
     }
 
     #[getter]

@@ -2,9 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem::replace;
 
-use pyo3::{pyclass, pymethods, PyResult};
+use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
-use revm::{Database, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
+use pyo3::types::PyBytes;
+use revm::{Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
 use RevmExecutionResult::Success;
@@ -13,8 +14,7 @@ use tracing::trace;
 use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
 use crate::database::DB;
 use crate::executor::call_evm;
-use crate::types::{PyBytes, PyDB};
-use crate::utils::to_hashmap;
+use crate::types::{PyByteVec, PyDB};
 
 #[derive(Debug)]
 #[pyclass]
@@ -104,14 +104,27 @@ impl EVM {
         Ok(account.info.clone().into())
     }
 
+    fn get_code(&mut self, address: &str, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let (code, _) = self.context.code(addr(address)?).map_err(pyerr)?;
+        if code.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(PyBytes::new(py, &code.bytecode.to_vec()).into()))
+    }
+
     /// Get storage value of address at index.
-    fn storage(&mut self, address: &str, index: U256) -> PyResult<U256> {
-        Ok(self.context.db.storage(addr(address)?, index)?)
+    fn storage(&mut self, address: &str, index: U256) -> PyResult<Option<U256>> {
+        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(account.storage.get(&index).map(|s| s.present_value))
     }
 
     /// Get block hash by block number.
-    fn block_hash(&mut self, number: U256) -> PyResult<PyBytes> {
-        Ok(self.context.block_hash(number).map_err(pyerr)?.to_vec())
+    fn block_hash(&mut self, number: U256, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let bytes = self.context.block_hash(number).map_err(pyerr)?;
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(PyBytes::new(py, &bytes.to_vec()).into()))
     }
 
     /// Inserts the provided account information in the database at the specified address.
@@ -120,7 +133,13 @@ impl EVM {
         address: &str,
         info: AccountInfo,
     ) -> PyResult<()> {
-        self.context.db.insert_account_info(addr(address)?, info.clone().into());
+        let target = addr(address)?;
+        match self.context.journaled_state.state.get_mut(&target) {
+            // account is cold, just insert into the DB, so it's retrieved next time
+            None => self.context.db.insert_account_info(target, info.into()),
+            // just replace the account info
+            Some(acc) => acc.info = info.into(),
+        }
         Ok(())
     }
 
@@ -132,7 +151,6 @@ impl EVM {
             account.info.balance = balance;
             account.clone()
         };
-        self.context.db.insert_account_info(address_, account.info.clone());
         self.context.journaled_state.state.insert(address_, account);
         self.context.journaled_state.touch(&address_);
         Ok(())
@@ -149,13 +167,14 @@ impl EVM {
         &mut self,
         caller: &str,
         to: &str,
-        calldata: Option<PyBytes>,
+        calldata: Option<PyByteVec>,
         value: Option<U256>,
-    ) -> PyResult<PyBytes> {
+        py: Python<'_>,
+    ) -> PyResult<PyObject> {
         let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
         match self.call_with_env(env)
         {
-            Ok(data) => Ok(data.to_vec()),
+            Ok(data) => Ok(PyBytes::new(py, &data.to_vec()).into()),
             Err(e) => Err(e),
         }
     }
@@ -164,7 +183,7 @@ impl EVM {
     fn deploy(
         &mut self,
         deployer: &str,
-        code: Option<PyBytes>,
+        code: Option<PyByteVec>,
         value: Option<U256>,
         _abi: Option<&str>,
     ) -> PyResult<String> {
@@ -200,13 +219,29 @@ impl EVM {
     fn journal_depth(&self) -> usize {
         self.context.journaled_state.depth
     }
+
     #[getter]
     fn journal_len(&self) -> usize {
         self.context.journaled_state.journal.len()
     }
 
-    fn get_accounts(&self) -> PyDB {
-        to_hashmap(self.context.db.get_accounts())
+    #[getter]
+    fn journal_str(&self) -> String {
+        format!("{:?}", self.context.journaled_state)
+    }
+
+    #[getter]
+    fn db_accounts(&self) -> PyDB {
+        self.context.db.get_accounts().iter().map(
+            |(address, db_acc)| (address.to_string(), db_acc.info.clone().into())
+        ).collect()
+    }
+
+    #[getter]
+    fn journal_state(&self) -> PyDB {
+        self.context.journaled_state.state.iter().map(
+            |(address, acc)| (address.to_string(), acc.info.clone().into())
+        ).collect()
     }
 
 }
@@ -258,14 +293,13 @@ impl EVM {
 
         let result = self.run_env(env)?;
 
-        match &result {
-            Success { output, .. } => {
-                match output {
-                    Output::Create(_, address) => Ok(address.unwrap()),
-                    _ => Err(pyerr(output.clone())),
-                }
+        if let Success { output, .. } = result {
+            match output {
+                Output::Create(_, address) => Ok(address.unwrap()),
+                _ => Err(pyerr(output.clone())),
             }
-            _ => Err(pyerr(result.clone())),
+        } else {
+            Err(pyerr(result.clone()))
         }
     }
 
@@ -277,14 +311,17 @@ impl EVM {
         trace!(sender=?env.tx.caller, "deploying contract");
 
         let result = self.run_env(env)?;
-        match &result {
-            Success { output, .. } => Ok(output.clone().into_data()),
-            _ => Err(pyerr(result.clone())),
+        if let Success { output, .. } = result {
+            match output {
+                Output::Call(_) => Ok(output.clone().into_data()),
+                _ => Err(pyerr(output.clone())),
+            }
+        } else {
+            Err(pyerr(result.clone()))
         }
     }
 
-    fn run_env(&mut self, env: RevmEnv) -> PyResult<RevmExecutionResult>
-    {
+    fn run_env(&mut self, env: RevmEnv) -> PyResult<RevmExecutionResult> {
         self.context.env = Box::new(env);
         let evm_context: EvmContext<DB> = replace(&mut self.context, EvmContext::new(DB::new_memory()));
         let (result, evm_context) = call_evm(evm_context, self.handler_cfg, self.tracing)?;
@@ -292,5 +329,4 @@ impl EVM {
         self.result = Some(result.clone());
         Ok(result)
     }
-
 }

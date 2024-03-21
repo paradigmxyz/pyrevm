@@ -70,12 +70,12 @@ def test_deploy():
     assert vb_before.nonce == 0
 
     # Deploy the contract
-    deployed_at = evm.deploy(
-        deployer=address,
-        code=bytes.fromhex("6060"),
-    )
+    code = bytes.fromhex("6060")
+    deployed_at = evm.deploy(address, code)
 
     assert deployed_at == "0x3e4ea2156166390f880071d94458efb098473311"
+    deployed_code = evm.get_code(deployed_at)
+    assert deployed_code == code
 
 
 def test_balances():
@@ -176,7 +176,7 @@ def test_call_empty_result(kwargs):
         calldata=bytes.fromhex("d0e30db0"),
     )
 
-    assert deposit == []
+    assert deposit == b""
 
     balance = evm.message_call(
         caller=address2,
@@ -206,3 +206,19 @@ def test_tracing(capsys):
             'pass': True,
             'stateRoot': '0x0000000000000000000000000000000000000000000000000000000000000000'} == traces[-1]
     assert len(traces) == 128
+
+def test_blueprint():
+    evm = EVM()
+    # bytecode based on vyper `@external def foo() -> uint256: return 123`
+    bytecode = load_contract_bin("blueprint.bin")
+
+    bytecode = b"\xFE\x71\x00" + bytecode
+    bytecode_len = len(bytecode)
+    bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
+
+    # prepend a quick deploy preamble
+    deploy_preamble = bytes.fromhex("61" + bytecode_len_hex + "3d81600a3d39f3")
+    deploy_bytecode = deploy_preamble + bytecode
+
+    deployer_address = evm.deploy(address, deploy_bytecode)
+    assert evm.basic(address).code == deploy_bytecode

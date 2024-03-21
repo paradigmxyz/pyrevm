@@ -9,8 +9,9 @@ use revm_interpreter::primitives::HandlerCfg;
 use crate::database::DB;
 use crate::utils::pyerr;
 
+/// Calls the EVM with the given context and handler configuration.
 pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tracing: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
-    let (result, evm_context) = if tracing {
+    if tracing {
         let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}), true);
         let evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -33,12 +34,11 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
                 },
             })
             .build();
-
         evm_call(evm)
-    }?;
-    Ok((result, evm_context))
+    }
 }
 
+/// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
 fn evm_call<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
     let initial_gas_spend = evm
@@ -101,7 +101,9 @@ fn evm_call<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmCon
     Ok((output(ctx, result)?, evm.context.evm))
 }
 
-/// Main return handle, returns the output of the transaction.
+/// Returns the output of the transaction.
+/// This is mostly copied from revm::handler::mainnet::post_execution::output
+/// However, we removed the journal finalization to keep the transaction open.
 #[inline]
 fn output<EXT>(
     context: &mut Context<EXT, DB>,

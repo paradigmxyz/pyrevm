@@ -1,4 +1,4 @@
-from typing import Optional, Type, Tuple
+from typing import Optional, Type
 
 
 class CfgEnv:
@@ -99,9 +99,9 @@ class AccountInfo:
     @property
     def nonce(self: "AccountInfo") -> int: ...
     @property
-    def code(self: "AccountInfo") -> bytes: ...
+    def code(self: "AccountInfo") -> Optional[bytes]: ...
     @property
-    def code_hash(self: "AccountInfo") -> bytes: ...
+    def code_hash(self: "AccountInfo") -> Optional[bytes]: ...
 
 class EVM:
     def __new__(
@@ -131,6 +131,13 @@ class EVM:
         Returns the basic account info for the given address.
         :param address: The address of the account.
         :return: The account info.
+        """
+
+    def get_code(self: "EVM", address: str) -> Optional[bytes]:
+        """
+        Returns the code of the given address.
+        :param address: The address.
+        :return: The code.
         """
 
     def insert_account_info(self: "EVM", address: str, info: AccountInfo) -> None:
@@ -184,12 +191,19 @@ class EVM:
         :param balance: The balance.
         """
 
-    def storage(self: "EVM", address: str, index: int) -> int:
+    def storage(self: "EVM", address: str, index: int) -> Optional[int]:
         """
         Returns the storage value of the given address at the given index.
         :param address: The address.
         :param index: The index.
         :return: The storage value.
+        """
+
+    def block_hash(self: "EVM", number: int) -> Optional[bytes]:
+        """
+        Returns the block hash of the given number.
+        :param number: The number.
+        :return: The block hash.
         """
 
     @property
