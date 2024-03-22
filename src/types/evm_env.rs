@@ -1,6 +1,6 @@
 use crate::utils::{addr, addr_or_zero};
 use pyo3::{exceptions::PyTypeError, pyclass, pymethods, PyObject, PyResult, Python, types::{PyBytes}};
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256, CreateScheme};
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -62,6 +62,7 @@ impl TxEnv {
         data: Option<Vec<u8>>,
         chain_id: Option<u64>,
         nonce: Option<u64>,
+        salt: Option<U256>,
     ) -> PyResult<Self> {
         Ok(TxEnv(RevmTxEnv {
             caller: addr_or_zero(caller)?,
@@ -69,9 +70,8 @@ impl TxEnv {
             gas_price: gas_price.unwrap_or_default(),
             gas_priority_fee: gas_priority_fee.map(Into::into),
             transact_to: match to {
-                Some(inner) => TransactTo::Call(addr(inner)?),
-                // TODO: Figure out how to integrate CREATE2 here
-                None => TransactTo::Create(CreateScheme::Create),
+                Some(inner) => TransactTo::call(addr(inner)?),
+                None => if salt.is_some() { TransactTo::create2(salt.unwrap()) } else { TransactTo::create() },
             },
             value: value.unwrap_or_default(),
             data: data.unwrap_or_default().into(),
@@ -128,6 +128,16 @@ impl TxEnv {
     #[getter]
     fn nonce(&self) -> Option<u64> {
         self.0.nonce
+    }
+
+    #[getter]
+    fn salt(&self) -> Option<U256> {
+        if let TransactTo::Create(scheme) = self.0.transact_to {
+            if let CreateScheme::Create2 { salt } = scheme {
+                return Some(salt);
+            }
+        }
+        None
     }
 }
 

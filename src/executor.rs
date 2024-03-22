@@ -10,7 +10,7 @@ use crate::database::DB;
 use crate::utils::pyerr;
 
 /// Calls the EVM with the given context and handler configuration.
-pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tracing: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tracing: bool, is_static: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     if tracing {
         let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}), true);
         let evm = Evm::builder()
@@ -23,7 +23,7 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
             })
             .append_handler_register(inspector_handle_register)
             .build();
-        run_evm(evm)
+        run_evm(evm, is_static)
     } else {
         let evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -34,12 +34,12 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
                 },
             })
             .build();
-        run_evm(evm)
+        run_evm(evm, is_static)
     }
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
     let initial_gas_spend = evm
         .handler
@@ -70,7 +70,7 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmCont
     let first_frame_or_result = match ctx.evm.env.tx.transact_to {
         TransactTo::Call(_) => exec.call(
             ctx,
-            CallInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
+            call_inputs(&ctx, gas_limit, is_static),
         ).map_err(pyerr)?,
         TransactTo::Create(_) => exec.create(
             ctx,
@@ -99,6 +99,12 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>) -> PyResult<(ExecutionResult, EvmCont
     post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
     // Returns output of transaction.
     Ok((output(ctx, result)?, evm.context.evm))
+}
+
+fn call_inputs<EXT>(ctx: &&mut Context<EXT, DB>, gas_limit: u64, is_static: bool) -> Box<CallInputs> {
+    let mut inputs = CallInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap();
+    inputs.is_static = is_static;
+    inputs
 }
 
 /// Returns the output of the transaction.

@@ -162,17 +162,19 @@ impl EVM {
         Ok(balance)
     }
 
-    #[pyo3(signature = (caller, to, calldata = None, value = None))]
+    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, is_static = false))]
     pub fn message_call(
         &mut self,
         caller: &str,
         to: &str,
         calldata: Option<PyByteVec>,
         value: Option<U256>,
+        gas: Option<U256>,
+        is_static: bool,
         py: Python<'_>,
     ) -> PyResult<PyObject> {
-        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into());
-        match self.call_with_env(env)
+        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into(), gas);
+        match self.call_with_env(env, is_static)
         {
             Ok(data) => Ok(PyBytes::new(py, &data.to_vec()).into()),
             Err(e) => Err(e),
@@ -180,15 +182,18 @@ impl EVM {
     }
 
     /// Deploy a contract with the given code.
+    #[pyo3(signature = (deployer, code, value = None, gas = None, is_static = false, _abi = None))]
     fn deploy(
         &mut self,
         deployer: &str,
-        code: Option<PyByteVec>,
+        code: PyByteVec,
         value: Option<U256>,
+        gas: Option<U256>,
+        is_static: bool,
         _abi: Option<&str>,
     ) -> PyResult<String> {
-        let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.unwrap_or_default().into(), value.unwrap_or_default());
-        match self.deploy_with_env(env)
+        let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.into(), value.unwrap_or_default(), gas);
+        match self.deploy_with_env(env, is_static)
         {
             Ok((_, address)) => Ok(format!("{:?}", address)),
             Err(e) => Err(e),
@@ -257,6 +262,7 @@ impl EVM {
         transact_to: TransactTo,
         data: Bytes,
         value: U256,
+        gas: Option<U256>,
     ) -> RevmEnv {
         RevmEnv {
             cfg: self.context.env.cfg.clone(),
@@ -276,7 +282,7 @@ impl EVM {
                 // As above, we set the gas price to 0.
                 gas_price: U256::ZERO,
                 gas_priority_fee: None,
-                gas_limit: self.gas_limit.to(),
+                gas_limit: gas.unwrap_or(self.gas_limit).to(),
                 ..self.context.env.tx.clone()
             },
         }
@@ -284,14 +290,14 @@ impl EVM {
 
     /// Deploys a contract using the given `env` and commits the new state to the underlying
     /// database
-    fn deploy_with_env(&mut self, env: RevmEnv) -> PyResult<(Bytes, Address)> {
+    fn deploy_with_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<(Bytes, Address)> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Create(_)),
             "Expect create transaction"
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let result = self.run_env(env)?;
+        let result = self.run_env(env, is_static)?;
 
         if let Success { output, .. } = result {
             match output {
@@ -303,14 +309,14 @@ impl EVM {
         }
     }
 
-    fn call_with_env(&mut self, env: RevmEnv) -> PyResult<Bytes> {
+    fn call_with_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<Bytes> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
             "Expect call transaction"
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let result = self.run_env(env)?;
+        let result = self.run_env(env, is_static)?;
         if let Success { output, .. } = result {
             match output {
                 Output::Call(_) => Ok(output.clone().into_data()),
@@ -321,10 +327,10 @@ impl EVM {
         }
     }
 
-    fn run_env(&mut self, env: RevmEnv) -> PyResult<RevmExecutionResult> {
+    fn run_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<RevmExecutionResult> {
         self.context.env = Box::new(env);
         let evm_context: EvmContext<DB> = replace(&mut self.context, EvmContext::new(DB::new_memory()));
-        let (result, evm_context) = call_evm(evm_context, self.handler_cfg, self.tracing)?;
+        let (result, evm_context) = call_evm(evm_context, self.handler_cfg, self.tracing, is_static)?;
         self.context = evm_context;
         self.result = Some(result.clone());
         Ok(result)

@@ -43,6 +43,7 @@ class TxEnv:
         data: Optional[bytes] = None,
         chain_id: Optional[int] = None,
         nonce: Optional[int] = None,
+        salt: Optional[int] = None,
     ) -> "TxEnv": ...
 
     @property
@@ -190,12 +191,18 @@ class EVM:
         deployer: str,
         code: bytes,
         value: Optional[int] = None,
+        gas: Optional[int] = None,
+        is_static = False,
+        _abi: Optional[list[dict]] = None
     ) -> str:
         """
         Deploys the given code.
         :param deployer: The address of the deployer.
         :param code: The code.
         :param value: The value.
+        :param gas: The gas.
+        :param is_static: Whether the deployment is static (i.e. does not change the state).
+        :param _abi: The ABI.
         :return: The address of the deployed contract.
         """
 
