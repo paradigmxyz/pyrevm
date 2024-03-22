@@ -176,6 +176,8 @@ class EVM:
         to: str,
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
+        gas: Optional[int] = None,
+        is_static = False,
     ) -> bytes:
         """
         Processes a raw call, without committing the result to the state.
@@ -183,6 +185,8 @@ class EVM:
         :param to: The address of the callee.
         :param calldata: The calldata.
         :param value: The value.
+        :param gas: The gas.
+        :param is_static: Whether the call is static (i.e. does not change the state).
         :return: The return data and a list of changes to the state.
         """
 
