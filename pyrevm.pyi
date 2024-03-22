@@ -103,6 +103,28 @@ class AccountInfo:
     @property
     def code_hash(self: "AccountInfo") -> Optional[bytes]: ...
 
+
+class ExecutionResult:
+    def __new__(
+        cls: Type["ExecutionResult"],
+        is_success: bool,
+        is_halt: bool,
+        reason: str,
+        gas_used: int,
+        gas_refunded: int,
+    ) -> "ExecutionResult": ...
+    @property
+    def is_success(self) -> bool: ...
+    @property
+    def is_halt(self) -> bool: ...
+    @property
+    def reason(self) -> str: ...
+    @property
+    def gas_used(self) -> int: ...
+    @property
+    def gas_refunded(self) -> int: ...
+
+
 class EVM:
     def __new__(
         cls: Type["EVM"],
@@ -213,3 +235,31 @@ class EVM:
     @property
     def tracing(self: "EVM") -> bool:
         """ Whether tracing is enabled. """
+
+    @property
+    def result(self: "EVM") -> Optional[ExecutionResult]:
+        """ The result of the execution. """
+
+    @property
+    def checkpoint_ids(self: "EVM") -> set[JournalCheckpoint]:
+        """ The checkpoint IDs. """
+
+    @property
+    def journal_depth(self: "EVM") -> int:
+        """ The journal depth. """
+
+    @property
+    def journal_len(self: "EVM") -> int:
+        """ The journal length. """
+
+    @property
+    def journal_str(self: "EVM") -> str:
+        """ The journal string. """
+
+    @property
+    def db_accounts(self: "EVM") -> dict[str, AccountInfo]:
+        """ The accounts in the database. """
+
+    @property
+    def journal_state(self: "EVM") -> dict[str, AccountInfo]:
+        """ The state in the journal. """

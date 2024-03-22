@@ -158,7 +158,7 @@ def test_call_revert():
     amount = 10000
     evm.set_balance(address2, amount)
 
-    snapshot = evm.snapshot()
+    checkpoint = evm.snapshot()
     evm.message_call(
         caller=address2,
         to=address,
@@ -166,7 +166,7 @@ def test_call_revert():
     )
 
     assert evm.get_balance(address) == amount
-    evm.revert(snapshot)
+    evm.revert(checkpoint)
     assert evm.get_balance(address) == 0
     assert evm.get_balance(address2) == amount
 
@@ -215,6 +215,7 @@ def test_tracing(capsys):
             'pass': True,
             'stateRoot': '0x0000000000000000000000000000000000000000000000000000000000000000'} == traces[-1]
     assert len(traces) == 128
+
 
 def test_blueprint():
     evm = EVM()
