@@ -124,6 +124,8 @@ class ExecutionResult:
     def gas_used(self) -> int: ...
     @property
     def gas_refunded(self) -> int: ...
+    @property
+    def logs(self) -> list["Log"]: ...
 
 
 class EVM:
@@ -247,6 +249,10 @@ class EVM:
     def tracing(self: "EVM") -> bool:
         """ Whether tracing is enabled. """
 
+    @tracing.setter
+    def set_tracing(self: "EVM", value: bool) -> None:
+        """ Set whether tracing is enabled. """
+
     @property
     def result(self: "EVM") -> Optional[ExecutionResult]:
         """ The result of the execution. """
@@ -274,3 +280,15 @@ class EVM:
     @property
     def journal_state(self: "EVM") -> dict[str, AccountInfo]:
         """ The state in the journal. """
+
+
+class Log:
+    @property
+    def address(self) -> str: ...
+
+    @property
+    def topics(self) -> list[str]: ...
+
+    @property
+    def data(self) -> tuple[list[bytes], bytes]:
+        """ :return: A tuple with a list of topics and the log data. """

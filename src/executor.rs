@@ -2,6 +2,7 @@ use std::mem::replace;
 use pyo3::PyResult;
 use revm::{Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register};
 use revm::inspectors::TracerEip3155;
+use revm::precompile::Log;
 use revm::primitives::{ExecutionResult};
 use revm::primitives::TransactTo;
 use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
@@ -40,6 +41,8 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
 fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+    let logs_i = evm.context.evm.journaled_state.logs.len();
+
     evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
     let initial_gas_spend = evm
         .handler
@@ -97,8 +100,11 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
     post_exec.reimburse_caller(ctx, result.gas()).map_err(pyerr)?;
     // Reward beneficiary
     post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
+
+    let logs = ctx.evm.journaled_state.logs[logs_i..].to_vec();
+
     // Returns output of transaction.
-    Ok((output(ctx, result)?, evm.context.evm))
+    Ok((output(ctx, result, logs)?, evm.context.evm))
 }
 
 fn call_inputs<EXT>(ctx: &&mut Context<EXT, DB>, gas_limit: u64, is_static: bool) -> Box<CallInputs> {
@@ -114,6 +120,7 @@ fn call_inputs<EXT>(ctx: &&mut Context<EXT, DB>, gas_limit: u64, is_static: bool
 fn output<EXT>(
     context: &mut Context<EXT, DB>,
     result: FrameResult,
+    logs: Vec<Log>,
 ) -> PyResult<ExecutionResult> {
     replace(&mut context.evm.error, Ok(())).map_err(pyerr)?;
     // used gas with refund calculated.
@@ -127,7 +134,7 @@ fn output<EXT>(
             reason,
             gas_used: final_gas_used,
             gas_refunded,
-            logs: vec![], // todo: logs
+            logs,
             output,
         },
         SuccessOrHalt::Revert => ExecutionResult::Revert {

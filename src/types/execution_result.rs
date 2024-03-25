@@ -1,8 +1,34 @@
-use pyo3::{pyclass, pymethods};
-use revm::primitives::ExecutionResult as RevmExecutionResult;
+use pyo3::{pyclass, pymethods, PyObject, Python};
+use pyo3::types::PyBytes;
+use revm::primitives::{ExecutionResult as RevmExecutionResult, Log as RevmLog};
+
+#[derive(Debug, Clone, Hash)]
+#[pyclass]
+pub struct Log(RevmLog);
 
 
-#[derive(Debug)]
+#[pymethods]
+impl Log {
+    #[getter]
+    fn address(&self) -> String {
+        self.0.address.to_string()
+    }
+
+    #[getter]
+    fn topics(&self) -> Vec<String> {
+        self.0.topics().iter().map(|x| x.to_string()).collect()
+    }
+
+    #[getter]
+    fn data(&self, py: Python<'_>) -> (Vec<PyObject>, PyObject) {
+        let topics = self.0.data.topics().iter().map(|t| PyBytes::new(py, &t.0).into()).collect();
+        let data = PyBytes::new(py, &self.0.data.data).into();
+        (topics, data)
+    }
+}
+
+/// Result of a transaction execution.
+#[derive(Debug, Clone, Hash)]
 #[pyclass(get_all)]
 pub struct ExecutionResult {
     is_success: bool,
@@ -10,7 +36,7 @@ pub struct ExecutionResult {
     reason: String,
     gas_used: u64,
     gas_refunded: u64,
-    // TODO: logs: Vec<Log>,
+    logs: Vec<Log>,
 }
 
 #[pymethods]
@@ -35,6 +61,23 @@ impl From<RevmExecutionResult> for ExecutionResult {
                 RevmExecutionResult::Success { gas_refunded, .. } => gas_refunded,
                 _ => u64::default(),
             },
+            logs: match result {
+                RevmExecutionResult::Success { logs, .. } => logs.into_iter().map(Log).collect(),
+                _ => Vec::new(),
+            },
         }
     }
 }
+
+impl From<RevmLog> for Log {
+    fn from(env: RevmLog) -> Self {
+        Log(env)
+    }
+}
+
+impl From<Log> for RevmLog {
+    fn from(env: Log) -> Self {
+        env.0
+    }
+}
+

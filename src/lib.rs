@@ -25,11 +25,13 @@ fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 
     // Types
     m.add_class::<AccountInfo>()?;
-
     m.add_class::<Env>()?;
     m.add_class::<CfgEnv>()?;
     m.add_class::<TxEnv>()?;
     m.add_class::<BlockEnv>()?;
+    m.add_class::<ExecutionResult>()?;
+    m.add_class::<Log>()?;
+    m.add_class::<JournalCheckpoint>()?;
 
     Ok(())
 }

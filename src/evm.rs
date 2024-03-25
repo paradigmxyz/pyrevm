@@ -31,6 +31,7 @@ pub struct EVM {
     gas_limit: U256,
 
     /// whether to trace the execution to stdout
+    #[pyo3(get, set)]
     tracing: bool,
 
     /// Checkpoints for reverting state
@@ -203,11 +204,6 @@ impl EVM {
     #[getter]
     fn env(&self) -> Env {
         (*self.context.env).clone().into()
-    }
-
-    #[getter]
-    fn tracing(&self) -> bool {
-        self.tracing
     }
 
     #[getter]
