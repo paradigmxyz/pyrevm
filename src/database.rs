@@ -38,7 +38,6 @@ impl DB {
         let provider = Provider::<Http>::try_from(fork_url).map_err(pyerr)?;
         let block = fork_block_number.map(|n| BlockId::from_str(n)).map_or(Ok(None), |v| v.map(Some)).map_err(pyerr)?;
         let db = EthersDB::new(Arc::new(provider), block).unwrap();
-        // todo: do we need to get the blockEnv from the client?
         Ok(DB::Fork(CacheDB::new(db)))
     }
 

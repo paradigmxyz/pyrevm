@@ -141,6 +141,9 @@ class EVM:
         """
         Creates a new EVM instance.
         :param env: The environment.
+        :param fork_url: The fork URL.
+        :param fork_block_number: The fork block number. Either a block hash starting with 0x or a block number:
+            Supported block numbers: Latest, Finalized, Safe, Earliest, Pending
         :param gas_limit: The gas limit.
         :param tracing: Whether to enable tracing.
         :param spec_id: The spec ID.
