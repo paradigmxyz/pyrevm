@@ -8,7 +8,7 @@ use pyo3::types::PyBytes;
 use revm::{Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::precompile::{Address, Bytes};
 use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
-use RevmExecutionResult::Success;
+use revm::primitives::ExecutionResult::Success;
 use tracing::trace;
 
 use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
@@ -163,7 +163,7 @@ impl EVM {
         Ok(balance)
     }
 
-    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, is_static = false))]
+    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, gas_price = None, is_static = false))]
     pub fn message_call(
         &mut self,
         caller: &str,
@@ -171,10 +171,11 @@ impl EVM {
         calldata: Option<PyByteVec>,
         value: Option<U256>,
         gas: Option<U256>,
+        gas_price: Option<U256>,
         is_static: bool,
         py: Python<'_>,
     ) -> PyResult<PyObject> {
-        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into(), gas);
+        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into(), gas, gas_price);
         match self.call_with_env(env, is_static)
         {
             Ok(data) => Ok(PyBytes::new(py, &data.to_vec()).into()),
@@ -183,17 +184,18 @@ impl EVM {
     }
 
     /// Deploy a contract with the given code.
-    #[pyo3(signature = (deployer, code, value = None, gas = None, is_static = false, _abi = None))]
+    #[pyo3(signature = (deployer, code, value = None, gas = None, gas_price = None, is_static = false, _abi = None))]
     fn deploy(
         &mut self,
         deployer: &str,
         code: PyByteVec,
         value: Option<U256>,
         gas: Option<U256>,
+        gas_price: Option<U256>,
         is_static: bool,
         _abi: Option<&str>,
     ) -> PyResult<String> {
-        let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.into(), value.unwrap_or_default(), gas);
+        let env = self.build_test_env(addr(deployer)?, TransactTo::Create(CreateScheme::Create), code.into(), value.unwrap_or_default(), gas, gas_price);
         match self.deploy_with_env(env, is_static)
         {
             Ok((_, address)) => Ok(format!("{:?}", address)),
@@ -259,6 +261,7 @@ impl EVM {
         data: Bytes,
         value: U256,
         gas: Option<U256>,
+        gas_price: Option<U256>,
     ) -> RevmEnv {
         RevmEnv {
             cfg: self.context.env.cfg.clone(),
@@ -276,7 +279,7 @@ impl EVM {
                 data,
                 value,
                 // As above, we set the gas price to 0.
-                gas_price: U256::ZERO,
+                gas_price: gas_price.unwrap_or(U256::ZERO),
                 gas_priority_fee: None,
                 gas_limit: gas.unwrap_or(self.gas_limit).to(),
                 ..self.context.env.tx.clone()
@@ -296,9 +299,10 @@ impl EVM {
         let result = self.run_env(env, is_static)?;
 
         if let Success { output, .. } = result {
-            match output {
-                Output::Create(out, address) => Ok((out, address.unwrap())),
-                _ => Err(pyerr(output.clone())),
+            if let Output::Create(out, address) = output {
+                Ok((out, address.unwrap()))
+            } else {
+                Err(pyerr(output.clone()))
             }
         } else {
             Err(pyerr(result.clone()))
@@ -314,9 +318,10 @@ impl EVM {
 
         let result = self.run_env(env, is_static)?;
         if let Success { output, .. } = result {
-            match output {
-                Output::Call(_) => Ok(output.clone().into_data()),
-                _ => Err(pyerr(output.clone())),
+            if let Output::Call(_) = output {
+                Ok(output.into_data())
+            } else {
+                Err(pyerr(output.clone()))
             }
         } else {
             Err(pyerr(result.clone()))

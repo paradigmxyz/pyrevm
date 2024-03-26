@@ -44,6 +44,8 @@ def test_revm_fork():
         env=Env(block=BlockEnv(timestamp=100, prevrandao=bytes([0] * 32))),
     )
 
+    assert evm.env.block.timestamp == 100
+
     vb_before = evm.basic(address)
     assert vb_before is not None
 
@@ -95,11 +97,11 @@ def test_balances():
     assert vb_before.balance == 0
 
     # Give ether
-    AMT = 10000
-    evm.set_balance(address, AMT)
+    amount = 10000
+    evm.set_balance(address, amount)
 
-    assert evm.get_balance(address) == AMT
-    assert evm.basic(address).balance == AMT
+    assert evm.get_balance(address) == amount
+    assert evm.basic(address).balance == amount
 
 
 def test_balances_fork():

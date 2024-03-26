@@ -1,12 +1,15 @@
 use std::mem::replace;
+
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
 use revm::{Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register};
 use revm::inspectors::TracerEip3155;
 use revm::precompile::Log;
-use revm::primitives::{ExecutionResult};
+use revm::primitives::{ExecutionResult, ShanghaiSpec};
 use revm::primitives::TransactTo;
-use revm_interpreter::{CallInputs, CreateInputs, SuccessOrHalt};
+use revm_interpreter::{CallInputs, CreateInputs, gas, SuccessOrHalt};
 use revm_interpreter::primitives::HandlerCfg;
+
 use crate::database::DB;
 use crate::utils::pyerr;
 
@@ -48,7 +51,16 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
         .handler
         .validation()
         .initial_tx_gas(&evm.context.evm.env)
-        .map_err(pyerr)?;
+        .map_err(|e| {
+            let tx = &evm.context.evm.env.tx;
+            PyRuntimeError::new_err(format!(
+                "Initial gas spend is {} but gas limit is {}. Error: {:?}",
+                gas::validate_initial_tx_gas::<ShanghaiSpec>(&tx.data, tx.transact_to.is_create(), &tx.access_list),
+                tx.gas_limit,
+                e
+            ))
+        })?;
+
     evm.handler
         .validation()
         .tx_against_state(&mut evm.context)

@@ -37,7 +37,7 @@ impl DB {
     ) -> PyResult<Self> {
         let provider = Provider::<Http>::try_from(fork_url).map_err(pyerr)?;
         let block = fork_block_number.map(|n| BlockId::from_str(n)).map_or(Ok(None), |v| v.map(Some)).map_err(pyerr)?;
-        let db = EthersDB::new(Arc::new(provider), block).unwrap();
+        let db = EthersDB::new(Arc::new(provider), block).unwrap_or_else(|| panic!("Could not create EthersDB"));
         Ok(DB::Fork(CacheDB::new(db)))
     }
 

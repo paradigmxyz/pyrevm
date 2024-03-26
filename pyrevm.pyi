@@ -182,6 +182,7 @@ class EVM:
         calldata: Optional[bytes] = None,
         value: Optional[int] = None,
         gas: Optional[int] = None,
+        gas_price: Optional[int] = None,
         is_static = False,
     ) -> bytes:
         """
@@ -189,8 +190,9 @@ class EVM:
         :param caller: The address of the caller.
         :param to: The address of the callee.
         :param calldata: The calldata.
-        :param value: The value.
-        :param gas: The gas.
+        :param value: The value to be transferred.
+        :param gas: The gas supplied for the call.
+        :param gas_price: The gas price for the call. Defaults to 0.
         :param is_static: Whether the call is static (i.e. does not change the state).
         :return: The return data and a list of changes to the state.
         """

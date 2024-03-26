@@ -31,6 +31,10 @@ impl Env {
     fn tx(&self) -> TxEnv {
         self.0.tx.clone().into()
     }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 impl From<RevmEnv> for Env {
@@ -138,6 +142,10 @@ impl TxEnv {
             }
         }
         None
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
     }
 }
 
