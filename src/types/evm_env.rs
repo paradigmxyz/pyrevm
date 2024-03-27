@@ -219,13 +219,23 @@ impl BlockEnv {
     }
 
     #[getter]
-    fn prevrandao(&self) -> Option<[u8; 32]> {
-        self.0.prevrandao.map(|i| i.0)
+    fn prevrandao(&self, py: Python<'_>) -> Option<PyObject> {
+        self.0.prevrandao.map(|i| PyBytes::new(py, &i.0.to_vec()).into())
     }
 
     #[getter]
     fn basefee(&self) -> U256 {
         self.0.basefee
+    }
+
+    #[getter]
+    fn gas_limit(&self) -> U256 {
+        self.0.gas_limit
+    }
+
+    #[getter]
+    fn excess_blob_gas(&self) -> Option<u64> {
+        self.0.blob_excess_gas_and_price.clone().map(|i| i.excess_blob_gas)
     }
 
     fn __str__(&self) -> PyResult<String> {

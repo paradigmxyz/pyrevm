@@ -14,6 +14,7 @@ class BlockEnv:
         prevrandao: Optional[bytes] = None,
         basefee: Optional[int] = None,
         gas_limit: Optional[int] = None,
+        excess_blob_gas: Optional[int] = None,
     ) -> "BlockEnv": ...
 
     @property
@@ -30,6 +31,8 @@ class BlockEnv:
     def basefee(self) -> Optional[int]: ...
     @property
     def gas_limit(self) -> Optional[int]: ...
+    @property
+    def excess_blob_gas(self) -> Optional[int]: ...
 
 class TxEnv:
     def __new__(
@@ -285,6 +288,9 @@ class EVM:
     @property
     def journal_state(self: "EVM") -> dict[str, AccountInfo]:
         """ The state in the journal. """
+
+    def set_block_env(self: "EVM", block: BlockEnv) -> None:
+        """ Set the block environment. """
 
 
 class Log:

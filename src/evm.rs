@@ -7,11 +7,11 @@ use pyo3::exceptions::{PyKeyError, PyOverflowError};
 use pyo3::types::PyBytes;
 use revm::{Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
 use revm::precompile::{Address, Bytes};
-use revm::primitives::{BlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
+use revm::primitives::{CreateScheme, BlockEnv as RevmBlockEnv, Env as RevmEnv, ExecutionResult as RevmExecutionResult, HandlerCfg, Output, SpecId, TransactTo, TxEnv};
 use revm::primitives::ExecutionResult::Success;
 use tracing::trace;
 
-use crate::{types::{AccountInfo, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
+use crate::{types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint}, utils::{addr, pyerr}};
 use crate::database::DB;
 use crate::executor::call_evm;
 use crate::types::{PyByteVec, PyDB};
@@ -247,6 +247,13 @@ impl EVM {
         ).collect()
     }
 
+    fn set_block_env(&mut self, block: BlockEnv) {
+        self.context.env.block = block.into();
+    }
+
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 impl EVM {
@@ -268,7 +275,7 @@ impl EVM {
             // We always set the gas price to 0, so we can execute the transaction regardless of
             // network conditions - the actual gas price is kept in `evm.block` and is applied by
             // the cheatcode handler if it is enabled
-            block: BlockEnv {
+            block: RevmBlockEnv {
                 basefee: U256::ZERO,
                 gas_limit: self.gas_limit,
                 ..self.context.env.block.clone()
