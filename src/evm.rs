@@ -353,10 +353,10 @@ impl EVM {
             if let Output::Call(_) = output {
                 Ok(output.into_data())
             } else {
-                Err(pyerr(output.clone()))
+                Err(pyerr(output))
             }
         } else {
-            Err(pyerr(result.clone()))
+            Err(pyerr(result))
         }
     }
 

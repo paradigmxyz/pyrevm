@@ -22,8 +22,7 @@ impl AccountInfo {
             .0
             .code
             .as_ref()
-            .map(|x| x.bytes().to_vec())
-            .map(|bytes| PyBytes::new(py, &bytes).into())
+            .map(|bytecode| PyBytes::new(py, bytecode.bytes()).into())
     }
 
     #[getter]
