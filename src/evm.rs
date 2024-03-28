@@ -1,7 +1,10 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
-use std::mem::replace;
-
+use crate::database::DB;
+use crate::executor::call_evm;
+use crate::types::{PyByteVec, PyDB};
+use crate::{
+    types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint},
+    utils::{addr, pyerr},
+};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
 use pyo3::types::PyBytes;
 use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
@@ -12,15 +15,10 @@ use revm::primitives::{
     HandlerCfg, Output, SpecId, TransactTo, TxEnv,
 };
 use revm::{primitives::U256, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint};
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::mem::replace;
 use tracing::trace;
-
-use crate::database::DB;
-use crate::executor::call_evm;
-use crate::types::{PyByteVec, PyDB};
-use crate::{
-    types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint},
-    utils::{addr, pyerr},
-};
 
 #[derive(Debug)]
 #[pyclass]

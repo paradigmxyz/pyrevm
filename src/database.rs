@@ -1,6 +1,5 @@
-use std::str::FromStr;
-use std::sync::Arc;
-
+use crate::empty_db_wrapper::EmptyDBWrapper;
+use crate::utils::pyerr;
 use ethers_core::types::BlockId;
 use ethers_providers::{Http, Provider};
 use pyo3::{PyErr, PyResult};
@@ -10,9 +9,8 @@ use revm::primitives::{AccountInfo, Bytecode, HashMap, State};
 use revm::Database;
 use revm_interpreter::primitives::db::{DatabaseCommit, DatabaseRef};
 use ruint::aliases::U256;
-
-use crate::empty_db_wrapper::EmptyDBWrapper;
-use crate::utils::pyerr;
+use std::str::FromStr;
+use std::sync::Arc;
 
 type MemDB = CacheDB<EmptyDBWrapper>;
 type ForkDB = CacheDB<EthersDB<Provider<Http>>>;

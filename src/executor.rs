@@ -1,5 +1,5 @@
-use std::mem::replace;
-
+use crate::database::DB;
+use crate::utils::pyerr;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
 use revm::inspectors::TracerEip3155;
@@ -12,9 +12,7 @@ use revm::{
 };
 use revm_interpreter::primitives::HandlerCfg;
 use revm_interpreter::{gas, CallInputs, CreateInputs, SuccessOrHalt};
-
-use crate::database::DB;
-use crate::utils::pyerr;
+use std::mem::replace;
 
 /// Calls the EVM with the given context and handler configuration.
 pub(crate) fn call_evm(

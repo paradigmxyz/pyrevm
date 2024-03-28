@@ -1,8 +1,7 @@
-use std::fmt::Debug;
-
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use revm::primitives::Address;
+use std::fmt::Debug;
 
 pub(crate) fn addr(s: &str) -> Result<Address, PyErr> {
     s.parse::<Address>()
