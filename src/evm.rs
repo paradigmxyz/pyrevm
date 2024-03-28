@@ -110,7 +110,7 @@ impl EVM {
         if code.is_empty() {
             return Ok(None);
         }
-        Ok(Some(PyBytes::new(py, &code.bytecode.to_vec()).into()))
+        Ok(Some(PyBytes::new(py, code.bytecode.as_ref()).into()))
     }
 
     /// Get storage value of address at index.
@@ -125,7 +125,7 @@ impl EVM {
         if bytes.is_empty() {
             return Ok(None);
         }
-        Ok(Some(PyBytes::new(py, &bytes.to_vec()).into()))
+        Ok(Some(PyBytes::new(py, bytes.as_ref()).into()))
     }
 
     /// Inserts the provided account information in the database at the specified address.
@@ -175,10 +175,10 @@ impl EVM {
         is_static: bool,
         py: Python<'_>,
     ) -> PyResult<PyObject> {
-        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default().into(), gas, gas_price);
+        let env = self.build_test_env(addr(caller)?, TransactTo::Call(addr(to)?), calldata.unwrap_or_default().into(), value.unwrap_or_default(), gas, gas_price);
         match self.call_with_env(env, is_static)
         {
-            Ok(data) => Ok(PyBytes::new(py, &data.to_vec()).into()),
+            Ok(data) => Ok(PyBytes::new(py, data.as_ref()).into()),
             Err(e) => Err(e),
         }
     }

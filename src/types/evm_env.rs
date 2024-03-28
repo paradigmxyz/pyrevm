@@ -1,6 +1,11 @@
 use crate::utils::{addr, addr_or_zero};
-use pyo3::{exceptions::PyTypeError, pyclass, pymethods, PyObject, PyResult, Python, types::{PyBytes}};
-use revm::primitives::{BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256, CreateScheme};
+use pyo3::{
+    exceptions::PyTypeError, pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python,
+};
+use revm::primitives::{
+    BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
+    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
+};
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -75,7 +80,9 @@ impl TxEnv {
             gas_priority_fee: gas_priority_fee.map(Into::into),
             transact_to: match to {
                 Some(inner) => TransactTo::call(addr(inner)?),
-                None => if salt.is_some() { TransactTo::create2(salt.unwrap()) } else { TransactTo::create() },
+                None => salt
+                    .map(TransactTo::create2)
+                    .unwrap_or_else(TransactTo::create),
             },
             value: value.unwrap_or_default(),
             data: data.unwrap_or_default().into(),
@@ -121,7 +128,7 @@ impl TxEnv {
 
     #[getter]
     fn data(&self, py: Python<'_>) -> PyObject {
-        PyBytes::new(py, &self.0.data.to_vec()).into()
+        PyBytes::new(py, self.0.data.as_ref()).into()
     }
 
     #[getter]
@@ -136,10 +143,8 @@ impl TxEnv {
 
     #[getter]
     fn salt(&self) -> Option<U256> {
-        if let TransactTo::Create(scheme) = self.0.transact_to {
-            if let CreateScheme::Create2 { salt } = scheme {
-                return Some(salt);
-            }
+        if let TransactTo::Create(CreateScheme::Create2 { salt }) = self.0.transact_to {
+            return Some(salt);
         }
         None
     }
@@ -155,9 +160,9 @@ impl From<TxEnv> for RevmTxEnv {
     }
 }
 
-impl Into<TxEnv> for RevmTxEnv {
-    fn into(self) -> TxEnv {
-        TxEnv(self)
+impl From<RevmTxEnv> for TxEnv {
+    fn from(val: RevmTxEnv) -> Self {
+        TxEnv(val)
     }
 }
 
@@ -199,7 +204,7 @@ impl BlockEnv {
     }
 
     #[getter]
-    fn number(&self) -> U256  {
+    fn number(&self) -> U256 {
         self.0.number
     }
 
@@ -220,7 +225,9 @@ impl BlockEnv {
 
     #[getter]
     fn prevrandao(&self, py: Python<'_>) -> Option<PyObject> {
-        self.0.prevrandao.map(|i| PyBytes::new(py, &i.0.to_vec()).into())
+        self.0
+            .prevrandao
+            .map(|i| PyBytes::new(py, i.0.as_ref()).into())
     }
 
     #[getter]
@@ -235,7 +242,10 @@ impl BlockEnv {
 
     #[getter]
     fn excess_blob_gas(&self) -> Option<u64> {
-        self.0.blob_excess_gas_and_price.clone().map(|i| i.excess_blob_gas)
+        self.0
+            .blob_excess_gas_and_price
+            .clone()
+            .map(|i| i.excess_blob_gas)
     }
 
     fn __str__(&self) -> PyResult<String> {
@@ -249,9 +259,9 @@ impl From<BlockEnv> for RevmBlockEnv {
     }
 }
 
-impl Into<BlockEnv> for RevmBlockEnv {
-    fn into(self) -> BlockEnv {
-        BlockEnv(self)
+impl From<RevmBlockEnv> for BlockEnv {
+    fn from(val: RevmBlockEnv) -> Self {
+        BlockEnv(val)
     }
 }
 
@@ -277,8 +287,8 @@ impl From<CfgEnv> for RevmCfgEnv {
     }
 }
 
-impl Into<CfgEnv> for RevmCfgEnv {
-    fn into(self) -> CfgEnv {
-        CfgEnv(self)
+impl From<RevmCfgEnv> for CfgEnv {
+    fn from(val: RevmCfgEnv) -> Self {
+        CfgEnv(val)
     }
 }

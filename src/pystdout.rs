@@ -12,7 +12,7 @@ impl Write for PySysStdout {
         Python::with_gil(|py| {
             let locals = PyDict::new(py);
             locals.set_item("s", s).unwrap();
-            py.run("print(s, end='')", None, Some(&locals)).unwrap();
+            py.run("print(s, end='')", None, Some(locals)).unwrap();
         });
         Ok(buf.len())
     }

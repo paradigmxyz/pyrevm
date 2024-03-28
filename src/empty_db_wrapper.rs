@@ -21,13 +21,13 @@ impl DatabaseRef for EmptyDBWrapper {
     }
 
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self.0.code_by_hash_ref(code_hash)?)
+        self.0.code_by_hash_ref(code_hash)
     }
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        Ok(self.0.storage_ref(address, index)?)
+        self.0.storage_ref(address, index)
     }
 
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {
-        Ok(self.0.block_hash_ref(number)?)
+        self.0.block_hash_ref(number)
     }
 }
