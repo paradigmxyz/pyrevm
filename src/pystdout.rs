@@ -1,6 +1,6 @@
-use std::io::Write;
-use pyo3::Python;
 use pyo3::types::PyDict;
+use pyo3::Python;
+use std::io::Write;
 
 pub(crate) struct PySysStdout;
 

@@ -4,10 +4,10 @@ use std::sync::Arc;
 use ethers_core::types::BlockId;
 use ethers_providers::{Http, Provider};
 use pyo3::{PyErr, PyResult};
-use revm::Database;
 use revm::db::{CacheDB, DbAccount, EthersDB};
 use revm::precompile::{Address, B256};
 use revm::primitives::{AccountInfo, Bytecode, HashMap, State};
+use revm::Database;
 use revm_interpreter::primitives::db::{DatabaseCommit, DatabaseRef};
 use ruint::aliases::U256;
 
@@ -16,7 +16,6 @@ use crate::utils::pyerr;
 
 type MemDB = CacheDB<EmptyDBWrapper>;
 type ForkDB = CacheDB<EthersDB<Provider<Http>>>;
-
 
 /// A wrapper around the `CacheDB` and `EthersDB` to provide a common interface
 /// without needing dynamic lifetime and generic parameters (unsupported in PyO3)
@@ -31,13 +30,14 @@ impl DB {
         DB::Memory(MemDB::new(EmptyDBWrapper::default()))
     }
 
-    pub(crate) fn new_fork(
-        fork_url: &str,
-        fork_block_number: Option<&str>,
-    ) -> PyResult<Self> {
+    pub(crate) fn new_fork(fork_url: &str, fork_block_number: Option<&str>) -> PyResult<Self> {
         let provider = Provider::<Http>::try_from(fork_url).map_err(pyerr)?;
-        let block = fork_block_number.map(BlockId::from_str).map_or(Ok(None), |v| v.map(Some)).map_err(pyerr)?;
-        let db = EthersDB::new(Arc::new(provider), block).unwrap_or_else(|| panic!("Could not create EthersDB"));
+        let block = fork_block_number
+            .map(BlockId::from_str)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(pyerr)?;
+        let db = EthersDB::new(Arc::new(provider), block)
+            .unwrap_or_else(|| panic!("Could not create EthersDB"));
         Ok(DB::Fork(CacheDB::new(db)))
     }
 

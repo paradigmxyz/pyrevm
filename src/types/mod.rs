@@ -1,14 +1,16 @@
 use std::collections::HashMap;
-pub use evm_env::*;
-pub use info::*;
-pub use execution_result::*;
+
+mod checkpoint;
 pub use checkpoint::*;
 
 mod evm_env;
-mod info;
-mod execution_result;
+pub use evm_env::*;
 
-mod checkpoint;
+mod execution_result;
+pub use execution_result::*;
+
+mod info;
+pub use info::*;
 
 // In Py03 we use vec<u8> to represent bytes
 pub(crate) type PyByteVec = Vec<u8>;

@@ -1,14 +1,14 @@
-use std::convert::Infallible;
+use revm::primitives::{Address, B256, U256};
 use revm::{
     db::{DatabaseRef, EmptyDB},
     primitives::{AccountInfo, Bytecode},
 };
-use revm::primitives::{Address, B256, U256};
+use std::convert::Infallible;
 
 /// An empty database that always returns default values when queried.
 /// This will also _always_ return `Some(AccountInfo)`.
-/// Copied from Foundry: https://github.com/foundry-rs/foundry/blob/9e3ab9b3aff21c6e5ef/crates/evm/core/src/backend/in_memory_db.rs#L83-L92
-
+///
+/// Copied from Foundry: <https://github.com/foundry-rs/foundry/blob/9e3ab9b3aff21c6e5ef/crates/evm/core/src/backend/in_memory_db.rs#L83-L92>
 #[derive(Clone, Debug, Default)]
 pub(crate) struct EmptyDBWrapper(EmptyDB);
 

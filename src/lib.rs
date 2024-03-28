@@ -13,11 +13,11 @@ pub use types::*;
 mod evm;
 pub use evm::EVM;
 
-mod utils;
-mod empty_db_wrapper;
 mod database;
-mod pystdout;
+mod empty_db_wrapper;
 mod executor;
+mod pystdout;
+mod utils;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {

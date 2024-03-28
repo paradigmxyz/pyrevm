@@ -1,11 +1,10 @@
-use pyo3::{pyclass, pymethods, PyObject, Python};
 use pyo3::types::PyBytes;
+use pyo3::{pyclass, pymethods, PyObject, Python};
 use revm::primitives::{ExecutionResult as RevmExecutionResult, Log as RevmLog};
 
 #[derive(Debug, Clone, Hash)]
 #[pyclass]
 pub struct Log(RevmLog);
-
 
 #[pymethods]
 impl Log {
@@ -21,7 +20,13 @@ impl Log {
 
     #[getter]
     fn data(&self, py: Python<'_>) -> (Vec<PyObject>, PyObject) {
-        let topics = self.0.data.topics().iter().map(|t| PyBytes::new(py, &t.0).into()).collect();
+        let topics = self
+            .0
+            .data
+            .topics()
+            .iter()
+            .map(|t| PyBytes::new(py, &t.0).into())
+            .collect();
         let data = PyBytes::new(py, &self.0.data.data).into();
         (topics, data)
     }
@@ -80,4 +85,3 @@ impl From<Log> for RevmLog {
         env.0
     }
 }
-

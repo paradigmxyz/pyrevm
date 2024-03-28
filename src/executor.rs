@@ -2,19 +2,27 @@ use std::mem::replace;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
-use revm::{Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult, FrameResult, inspector_handle_register};
 use revm::inspectors::TracerEip3155;
 use revm::precompile::Log;
-use revm::primitives::{ExecutionResult, ShanghaiSpec};
 use revm::primitives::TransactTo;
-use revm_interpreter::{CallInputs, CreateInputs, gas, SuccessOrHalt};
+use revm::primitives::{ExecutionResult, ShanghaiSpec};
+use revm::{
+    inspector_handle_register, Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult,
+    FrameResult,
+};
 use revm_interpreter::primitives::HandlerCfg;
+use revm_interpreter::{gas, CallInputs, CreateInputs, SuccessOrHalt};
 
 use crate::database::DB;
 use crate::utils::pyerr;
 
 /// Calls the EVM with the given context and handler configuration.
-pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tracing: bool, is_static: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+pub(crate) fn call_evm(
+    evm_context: EvmContext<DB>,
+    handler_cfg: HandlerCfg,
+    tracing: bool,
+    is_static: bool,
+) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     if tracing {
         let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}), true);
         let evm = Evm::builder()
@@ -43,10 +51,16 @@ pub(crate) fn call_evm(evm_context: EvmContext<DB>, handler_cfg: HandlerCfg, tra
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+fn run_evm<EXT>(
+    mut evm: Evm<'_, EXT, DB>,
+    is_static: bool,
+) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     let logs_i = evm.context.evm.journaled_state.logs.len();
 
-    evm.handler.validation().env(&evm.context.evm.env).map_err(pyerr)?;
+    evm.handler
+        .validation()
+        .env(&evm.context.evm.env)
+        .map_err(pyerr)?;
     let initial_gas_spend = evm
         .handler
         .validation()
@@ -55,7 +69,11 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
             let tx = &evm.context.evm.env.tx;
             PyRuntimeError::new_err(format!(
                 "Initial gas spend is {} but gas limit is {}. Error: {:?}",
-                gas::validate_initial_tx_gas::<ShanghaiSpec>(&tx.data, tx.transact_to.is_create(), &tx.access_list),
+                gas::validate_initial_tx_gas::<ShanghaiSpec>(
+                    &tx.data,
+                    tx.transact_to.is_create(),
+                    &tx.access_list
+                ),
                 tx.gas_limit,
                 e
             ))
@@ -83,14 +101,15 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
     let exec = evm.handler.execution();
     // call inner handling of call/create
     let first_frame_or_result = match ctx.evm.env.tx.transact_to {
-        TransactTo::Call(_) => exec.call(
-            ctx,
-            call_inputs(&ctx, gas_limit, is_static),
-        ).map_err(pyerr)?,
-        TransactTo::Create(_) => exec.create(
-            ctx,
-            CreateInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
-        ).map_err(pyerr)?,
+        TransactTo::Call(_) => exec
+            .call(ctx, call_inputs(&ctx, gas_limit, is_static))
+            .map_err(pyerr)?,
+        TransactTo::Create(_) => exec
+            .create(
+                ctx,
+                CreateInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap(),
+            )
+            .map_err(pyerr)?,
     };
 
     // Starts the main running loop.
@@ -109,9 +128,13 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
 
     let post_exec = evm.handler.post_execution();
     // Reimburse the caller
-    post_exec.reimburse_caller(ctx, result.gas()).map_err(pyerr)?;
+    post_exec
+        .reimburse_caller(ctx, result.gas())
+        .map_err(pyerr)?;
     // Reward beneficiary
-    post_exec.reward_beneficiary(ctx, result.gas()).map_err(pyerr)?;
+    post_exec
+        .reward_beneficiary(ctx, result.gas())
+        .map_err(pyerr)?;
 
     let logs = ctx.evm.journaled_state.logs[logs_i..].to_vec();
 
@@ -119,7 +142,11 @@ fn run_evm<EXT>(mut evm: Evm<'_, EXT, DB>, is_static: bool) -> PyResult<(Executi
     Ok((output(ctx, result, logs)?, evm.context.evm))
 }
 
-fn call_inputs<EXT>(ctx: &&mut Context<EXT, DB>, gas_limit: u64, is_static: bool) -> Box<CallInputs> {
+fn call_inputs<EXT>(
+    ctx: &&mut Context<EXT, DB>,
+    gas_limit: u64,
+    is_static: bool,
+) -> Box<CallInputs> {
     let mut inputs = CallInputs::new_boxed(&ctx.evm.env.tx, gas_limit).unwrap();
     inputs.is_static = is_static;
     inputs
