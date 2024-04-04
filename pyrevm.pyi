@@ -292,6 +292,9 @@ class EVM:
     def set_block_env(self: "EVM", block: BlockEnv) -> None:
         """ Set the block environment. """
 
+    def reset_transient_storage(self: "EVM") -> None:
+        """ Reset the transient storage. """
+
 
 class Log:
     @property

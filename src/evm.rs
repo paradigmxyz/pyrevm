@@ -274,6 +274,10 @@ impl EVM {
         self.context.env.block = block.into();
     }
 
+    fn reset_transient_storage(&mut self) {
+        self.context.journaled_state.transient_storage.clear();
+    }
+
     fn __str__(&self) -> String {
         format!("{:?}", self)
     }
