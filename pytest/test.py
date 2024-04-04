@@ -11,7 +11,7 @@ fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
 KWARG_CASES = [
     {"fork_url": fork_url},
-    {"fork_url": fork_url, "tracing": False, "fork_block_number": "latest"},
+    {"fork_url": fork_url, "tracing": False, "fork_block": "latest"},
     {},
 ]
 
@@ -105,7 +105,7 @@ def test_balances():
 
 
 def test_balances_fork():
-    evm = EVM(fork_url=fork_url, fork_block_number="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97")
+    evm = EVM(fork_url=fork_url, fork_block="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97")
 
     vb_before = evm.basic(address)
     assert vb_before.balance == 955628344913799071315

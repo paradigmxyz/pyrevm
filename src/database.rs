@@ -28,9 +28,9 @@ impl DB {
         DB::Memory(MemDB::new(EmptyDBWrapper::default()))
     }
 
-    pub(crate) fn new_fork(fork_url: &str, fork_block_number: Option<&str>) -> PyResult<Self> {
+    pub(crate) fn new_fork(fork_url: &str, fork_block: Option<&str>) -> PyResult<Self> {
         let provider = Provider::<Http>::try_from(fork_url).map_err(pyerr)?;
-        let block = fork_block_number
+        let block = fork_block
             .map(BlockId::from_str)
             .map_or(Ok(None), |v| v.map(Some))
             .map_err(pyerr)?;

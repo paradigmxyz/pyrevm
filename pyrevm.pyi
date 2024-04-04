@@ -136,7 +136,7 @@ class EVM:
         cls: Type["EVM"],
         env: Optional[Env] = None,
         fork_url: Optional[str] = None,
-        fork_block_number: Optional[str] = None,
+        fork_block: Optional[str] = None,
         gas_limit: int = 2**64 - 1,
         tracing: bool = False,
         spec_id="SHANGHAI",
@@ -145,7 +145,7 @@ class EVM:
         Creates a new EVM instance.
         :param env: The environment.
         :param fork_url: The fork URL.
-        :param fork_block_number: The fork block number. Either a block hash starting with 0x or a block number:
+        :param fork_block: The fork block number. Either a block hash starting with 0x or a block number:
             Supported block numbers: Latest, Finalized, Safe, Earliest, Pending
         :param gas_limit: The gas limit.
         :param tracing: Whether to enable tracing.

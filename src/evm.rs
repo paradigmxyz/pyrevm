@@ -50,11 +50,11 @@ pub struct EVM {
 impl EVM {
     /// Create a new EVM instance.
     #[new]
-    #[pyo3(signature = (env = None, fork_url = None, fork_block_number = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST"))]
+    #[pyo3(signature = (env = None, fork_url = None, fork_block = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST"))]
     fn new(
         env: Option<Env>,
         fork_url: Option<&str>,
-        fork_block_number: Option<&str>,
+        fork_block: Option<&str>,
         gas_limit: u64,
         tracing: bool,
         spec_id: &str,
@@ -62,7 +62,7 @@ impl EVM {
         let spec = SpecId::from(spec_id);
         let env = env.unwrap_or_default().into();
         let db = fork_url
-            .map(|url| DB::new_fork(url, fork_block_number))
+            .map(|url| DB::new_fork(url, fork_block))
             .unwrap_or(Ok(DB::new_memory()))?;
 
         let Evm { context, .. } = Evm::builder().with_env(Box::new(env)).with_db(db).build();
