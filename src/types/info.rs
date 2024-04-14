@@ -17,17 +17,17 @@ impl AccountInfo {
         _self.0.nonce
     }
     #[getter]
-    fn code(_self: PyRef<'_, Self>) -> Vec<u8> {
+    fn code(_self: PyRef<'_, Self>, py: Python<'_>) -> Option<PyObject> {
         _self
             .0
             .code
             .as_ref()
-            .map(|x| x.bytes().to_vec())
-            .unwrap_or_default()
+            .map(|bytecode| PyBytes::new(py, bytecode.bytes()).into())
     }
+
     #[getter]
-    fn code_hash(_self: PyRef<'_, Self>) -> [u8; 32] {
-        _self.0.code_hash.0
+    fn code_hash(_self: PyRef<'_, Self>, py: Python<'_>) -> PyObject {
+        PyBytes::new(py, &_self.0.code_hash.0).into()
     }
 
     #[new]

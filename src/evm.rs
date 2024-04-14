@@ -1,179 +1,375 @@
+use crate::database::DB;
+use crate::executor::call_evm;
+use crate::types::{PyByteVec, PyDB};
 use crate::{
-    types::{AccountInfo, Env},
-    utils::addr,
+    types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint},
+    utils::{addr, pyerr},
 };
-use foundry_evm::{
-    backend::Backend,
-    executors::{Executor, ExecutorBuilder},
-    fork::CreateFork,
-    opts::EvmOpts,
-    utils::RuntimeOrHandle,
+use pyo3::exceptions::{PyKeyError, PyOverflowError};
+use pyo3::types::PyBytes;
+use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
+use revm::precompile::{Address, Bytes};
+use revm::primitives::ExecutionResult::Success;
+use revm::primitives::{
+    BlockEnv as RevmBlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult,
+    HandlerCfg, Output, SpecId, TransactTo, TxEnv,
 };
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::prelude::*;
-use revm::{primitives::U256, Database};
+use revm::{primitives::U256, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::mem::replace;
+use tracing::trace;
 
+#[derive(Debug)]
 #[pyclass]
-pub struct EVM(Executor);
+pub struct EVM {
+    /// Context of execution.
+    context: EvmContext<DB>,
 
-impl EVM {
-    pub fn db(&self) -> &Backend {
-        &self.0.backend
-    }
-}
+    /// Handler configuration.
+    handler_cfg: HandlerCfg,
 
-fn pyerr<T: Debug>(err: T) -> pyo3::PyErr {
-    PyRuntimeError::new_err(format!("{:?}", err))
+    /// The gas limit for calls and deployments. This is different from the gas limit imposed by
+    /// the passed in environment, as those limits are used by the EVM for certain opcodes like
+    /// `gaslimit`.
+    gas_limit: U256,
+
+    /// whether to trace the execution to stdout
+    #[pyo3(get, set)]
+    tracing: bool,
+
+    /// Checkpoints for reverting state
+    /// We cannot use Revm's checkpointing mechanism as it is not serializable
+    checkpoints: HashMap<JournalCheckpoint, RevmCheckpoint>,
+
+    /// The result of the last transaction
+    result: Option<RevmExecutionResult>,
 }
 
 #[pymethods]
 impl EVM {
+    /// Create a new EVM instance.
     #[new]
-    #[pyo3(signature = (env=None, fork_url=None, fork_block_number=None, gas_limit=18446744073709551615, tracing=false))]
+    #[pyo3(signature = (env = None, fork_url = None, fork_block = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST"))]
     fn new(
         env: Option<Env>,
-        fork_url: Option<String>,
-        fork_block_number: Option<u64>,
+        fork_url: Option<&str>,
+        fork_block: Option<&str>,
         gas_limit: u64,
         tracing: bool,
+        spec_id: &str,
     ) -> PyResult<Self> {
-        let evm_opts = EvmOpts {
-            fork_url: fork_url.clone(),
-            fork_block_number,
-            ..Default::default()
-        };
+        let spec = SpecId::from(spec_id);
+        let env = env.unwrap_or_default().into();
+        let db = fork_url
+            .map(|url| DB::new_fork(url, fork_block))
+            .unwrap_or(Ok(DB::new_memory()))?;
 
-        let fork_opts = if let Some(fork_url) = fork_url {
-            let env = RuntimeOrHandle::new()
-                .block_on(evm_opts.evm_env())
-                .map_err(pyerr)?;
-            Some(CreateFork {
-                url: fork_url,
-                enable_caching: true,
-                env,
-                evm_opts,
-            })
+        let Evm { context, .. } = Evm::builder().with_env(Box::new(env)).with_db(db).build();
+        Ok(EVM {
+            context: context.evm,
+            gas_limit: U256::from(gas_limit),
+            handler_cfg: HandlerCfg::new(spec),
+            tracing,
+            checkpoints: HashMap::new(),
+            result: None,
+        })
+    }
+
+    fn snapshot(&mut self) -> PyResult<JournalCheckpoint> {
+        let checkpoint = JournalCheckpoint {
+            log_i: self.context.journaled_state.logs.len(),
+            journal_i: self.context.journaled_state.journal.len(),
+        };
+        self.checkpoints
+            .insert(checkpoint, self.context.journaled_state.checkpoint());
+        Ok(checkpoint)
+    }
+
+    fn revert(&mut self, checkpoint: JournalCheckpoint) -> PyResult<()> {
+        if self.context.journaled_state.depth == 0 {
+            return Err(PyOverflowError::new_err(format!(
+                "No checkpoint to revert to: {:?}",
+                self.context.journaled_state
+            )));
+        }
+
+        if let Some(revm_checkpoint) = self.checkpoints.remove(&checkpoint) {
+            self.context
+                .journaled_state
+                .checkpoint_revert(revm_checkpoint);
+            Ok(())
         } else {
-            None
-        };
-
-        let db = Backend::spawn(fork_opts);
-
-        let executor = ExecutorBuilder::default()
-            .gas_limit(U256::from(gas_limit))
-            .inspectors(|stack| stack.trace(tracing))
-            .build(env.unwrap_or_default().into(), db);
-
-        Ok(EVM(executor))
+            Err(PyKeyError::new_err("Invalid checkpoint"))
+        }
     }
 
-    /// Inserts the provided account information in the database at
-    /// the specified address.
-    fn basic(mut _self: PyRefMut<'_, Self>, address: &str) -> PyResult<Option<AccountInfo>> {
-        let db = &mut _self.0.backend;
-        let acc = db.basic(addr(address)?).map_err(pyerr)?;
-        Ok(acc.map(Into::into))
+    fn commit(&mut self) {
+        self.context.journaled_state.checkpoint_commit();
     }
 
-    /// Inserts the provided account information in the database at
-    /// the specified address.
-    fn insert_account_info(
-        mut _self: PyRefMut<'_, Self>,
-        address: &str,
-        info: AccountInfo,
-    ) -> PyResult<()> {
-        let db = &mut _self.0.backend;
-        db.insert_account_info(addr(address)?, info.into());
+    /// Get basic account information.
+    fn basic(&mut self, address: &str) -> PyResult<AccountInfo> {
+        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(account.info.clone().into())
+    }
 
+    fn get_code(&mut self, address: &str, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let (code, _) = self.context.code(addr(address)?).map_err(pyerr)?;
+        if code.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(PyBytes::new(py, code.bytecode.as_ref()).into()))
+    }
+
+    /// Get storage value of address at index.
+    fn storage(&mut self, address: &str, index: U256) -> PyResult<Option<U256>> {
+        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
+        Ok(account.storage.get(&index).map(|s| s.present_value))
+    }
+
+    /// Get block hash by block number.
+    fn block_hash(&mut self, number: U256, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let bytes = self.context.block_hash(number).map_err(pyerr)?;
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(PyBytes::new(py, bytes.as_ref()).into()))
+    }
+
+    /// Inserts the provided account information in the database at the specified address.
+    fn insert_account_info(&mut self, address: &str, info: AccountInfo) -> PyResult<()> {
+        let target = addr(address)?;
+        match self.context.journaled_state.state.get_mut(&target) {
+            // account is cold, just insert into the DB, so it's retrieved next time
+            None => self.context.db.insert_account_info(target, info.into()),
+            // just replace the account info
+            Some(acc) => acc.info = info.into(),
+        }
         Ok(())
     }
 
     /// Set the balance of a given address.
-    fn set_balance(mut _self: PyRefMut<'_, Self>, address: &str, balance: U256) -> PyResult<()> {
-        _self
-            .0
-            .set_balance(addr(address)?, balance)
-            .map_err(pyerr)?;
+    fn set_balance(&mut self, address: &str, balance: U256) -> PyResult<()> {
+        let address_ = addr(address)?;
+        let account = {
+            let (account, _) = self.context.load_account(address_).map_err(pyerr)?;
+            account.info.balance = balance;
+            account.clone()
+        };
+        self.context.journaled_state.state.insert(address_, account);
+        self.context.journaled_state.touch(&address_);
         Ok(())
     }
 
     /// Retrieve the balance of a given address.
-    fn get_balance(_self: PyRef<'_, Self>, address: &str) -> PyResult<U256> {
-        let balance = _self.0.get_balance(addr(address)?).map_err(pyerr)?;
+    fn get_balance(&mut self, address: &str) -> PyResult<U256> {
+        let (balance, _) = self.context.balance(addr(address)?).map_err(pyerr)?;
         Ok(balance)
     }
 
-    fn call_raw_committing(
-        mut _self: PyRefMut<'_, Self>,
+    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, gas_price = None, is_static = false))]
+    pub fn message_call(
+        &mut self,
         caller: &str,
         to: &str,
+        calldata: Option<PyByteVec>,
         value: Option<U256>,
-        data: Option<Vec<u8>>,
-    ) -> PyResult<Vec<u8>> {
-        let res = _self
-            .0
-            .call_raw_committing(
-                // TODO: The constant type conversions when
-                // crossing the boundary is annoying. Can we pass it
-                // a type that's already an `Address`?
-                addr(caller)?,
-                addr(to)?,
-                data.unwrap_or_default().into(),
-                value.unwrap_or_default(),
-            )
-            .map_err(pyerr)?;
-
-        if res.reverted {
-            return Err(pyerr(res.exit_reason));
+        gas: Option<U256>,
+        gas_price: Option<U256>,
+        is_static: bool,
+        py: Python<'_>,
+    ) -> PyResult<PyObject> {
+        let env = self.build_test_env(
+            addr(caller)?,
+            TransactTo::Call(addr(to)?),
+            calldata.unwrap_or_default().into(),
+            value.unwrap_or_default(),
+            gas,
+            gas_price,
+        );
+        match self.call_with_env(env, is_static) {
+            Ok(data) => Ok(PyBytes::new(py, data.as_ref()).into()),
+            Err(e) => Err(e),
         }
-
-        // TODO: Return the traces back to the user.
-        Ok(res.result.to_vec())
-    }
-
-    fn call_raw(
-        _self: PyRef<'_, Self>,
-        caller: &str,
-        to: &str,
-        value: Option<U256>,
-        data: Option<Vec<u8>>,
-    ) -> PyResult<Vec<u8>> {
-        let res = _self
-            .0
-            .call_raw(
-                addr(caller)?,
-                addr(to)?,
-                data.unwrap_or_default().into(),
-                value.unwrap_or_default(),
-            )
-            .map_err(pyerr)?;
-
-        if res.reverted {
-            return Err(pyerr(res.exit_reason));
-        }
-
-        Ok(res.result.to_vec())
     }
 
     /// Deploy a contract with the given code.
+    #[pyo3(signature = (deployer, code, value = None, gas = None, gas_price = None, is_static = false, _abi = None))]
     fn deploy(
-        mut _self: PyRefMut<'_, Self>,
+        &mut self,
         deployer: &str,
-        code: Option<Vec<u8>>,
+        code: PyByteVec,
         value: Option<U256>,
+        gas: Option<U256>,
+        gas_price: Option<U256>,
+        is_static: bool,
         _abi: Option<&str>,
     ) -> PyResult<String> {
-        let res = _self
-            .0
-            .deploy(
-                addr(deployer)?,
-                code.unwrap_or_default().into(),
-                value.unwrap_or_default(),
-                None,
-            )
-            .map_err(pyerr)?;
+        let env = self.build_test_env(
+            addr(deployer)?,
+            TransactTo::Create(CreateScheme::Create),
+            code.into(),
+            value.unwrap_or_default(),
+            gas,
+            gas_price,
+        );
+        match self.deploy_with_env(env, is_static) {
+            Ok((_, address)) => Ok(format!("{:?}", address)),
+            Err(e) => Err(e),
+        }
+    }
 
-        Ok(format!("{:?}", res.address))
+    #[getter]
+    fn env(&self) -> Env {
+        (*self.context.env).clone().into()
+    }
+
+    #[getter]
+    fn result(&self) -> Option<ExecutionResult> {
+        self.result.clone().map(|r| r.into())
+    }
+
+    #[getter]
+    fn checkpoint_ids(&self) -> HashSet<JournalCheckpoint> {
+        self.checkpoints.keys().cloned().collect()
+    }
+
+    #[getter]
+    fn journal_depth(&self) -> usize {
+        self.context.journaled_state.depth
+    }
+
+    #[getter]
+    fn journal_len(&self) -> usize {
+        self.context.journaled_state.journal.len()
+    }
+
+    #[getter]
+    fn journal_str(&self) -> String {
+        format!("{:?}", self.context.journaled_state)
+    }
+
+    #[getter]
+    fn db_accounts(&self) -> PyDB {
+        self.context
+            .db
+            .get_accounts()
+            .iter()
+            .map(|(address, db_acc)| (address.to_string(), db_acc.info.clone().into()))
+            .collect()
+    }
+
+    #[getter]
+    fn journal_state(&self) -> PyDB {
+        self.context
+            .journaled_state
+            .state
+            .iter()
+            .map(|(address, acc)| (address.to_string(), acc.info.clone().into()))
+            .collect()
+    }
+
+    fn set_block_env(&mut self, block: BlockEnv) {
+        self.context.env.block = block.into();
+    }
+
+    fn reset_transient_storage(&mut self) {
+        self.context.journaled_state.transient_storage.clear();
+    }
+
+    fn __str__(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+impl EVM {
+    /// Creates the environment to use when executing a transaction in a test context
+    ///
+    /// If using a backend with cheat codes, `tx.gas_price` and `block.number` will be overwritten by
+    /// the cheatcode state inbetween calls.
+    fn build_test_env(
+        &self,
+        caller: Address,
+        transact_to: TransactTo,
+        data: Bytes,
+        value: U256,
+        gas: Option<U256>,
+        gas_price: Option<U256>,
+    ) -> RevmEnv {
+        RevmEnv {
+            cfg: self.context.env.cfg.clone(),
+            // We always set the gas price to 0, so we can execute the transaction regardless of
+            // network conditions - the actual gas price is kept in `evm.block` and is applied by
+            // the cheatcode handler if it is enabled
+            block: RevmBlockEnv {
+                basefee: U256::ZERO,
+                gas_limit: self.gas_limit,
+                ..self.context.env.block.clone()
+            },
+            tx: TxEnv {
+                caller,
+                transact_to,
+                data,
+                value,
+                // As above, we set the gas price to 0.
+                gas_price: gas_price.unwrap_or(U256::ZERO),
+                gas_priority_fee: None,
+                gas_limit: gas.unwrap_or(self.gas_limit).to(),
+                ..self.context.env.tx.clone()
+            },
+        }
+    }
+
+    /// Deploys a contract using the given `env` and commits the new state to the underlying
+    /// database
+    fn deploy_with_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<(Bytes, Address)> {
+        debug_assert!(
+            matches!(env.tx.transact_to, TransactTo::Create(_)),
+            "Expect create transaction"
+        );
+        trace!(sender=?env.tx.caller, "deploying contract");
+
+        let result = self.run_env(env, is_static)?;
+
+        if let Success { output, .. } = result {
+            if let Output::Create(out, address) = output {
+                Ok((out, address.unwrap()))
+            } else {
+                Err(pyerr(output.clone()))
+            }
+        } else {
+            Err(pyerr(result.clone()))
+        }
+    }
+
+    fn call_with_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<Bytes> {
+        debug_assert!(
+            matches!(env.tx.transact_to, TransactTo::Call(_)),
+            "Expect call transaction"
+        );
+        trace!(sender=?env.tx.caller, "deploying contract");
+
+        let result = self.run_env(env, is_static)?;
+        if let Success { output, .. } = result {
+            if let Output::Call(_) = output {
+                Ok(output.into_data())
+            } else {
+                Err(pyerr(output))
+            }
+        } else {
+            Err(pyerr(result))
+        }
+    }
+
+    fn run_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<RevmExecutionResult> {
+        self.context.env = Box::new(env);
+        let evm_context: EvmContext<DB> =
+            replace(&mut self.context, EvmContext::new(DB::new_memory()));
+        let (result, evm_context) =
+            call_evm(evm_context, self.handler_cfg, self.tracing, is_static)?;
+        self.context = evm_context;
+        self.result = Some(result.clone());
+        Ok(result)
     }
 }

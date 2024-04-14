@@ -35,7 +35,7 @@ def _benchmark(
     warmup_runs: int = 2,
 ) -> None:
     def bench() -> None:
-        evm.call_raw(
+        evm.message_call(
             caller=caller_address,
             to=contract_address,
             data=call_data,
