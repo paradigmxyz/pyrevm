@@ -28,9 +28,9 @@ jobs:
           - x86_64
           - x86
             #- aarch64  # blocked by building ring>=0.17
-          - armv7
+            #- armv7  # blocked by blst 0.3.11
             #- s390x  # blocked by ring>=0.17
-            #- ppc64le  # blocked by blst 0.3.11 build failure
+            #- ppc64le  # blocked by blst 0.3.11
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
