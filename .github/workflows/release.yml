@@ -22,7 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+        target:
+          - x86_64
+          - x86
+            #- aarch64  # blocked by building ring>=0.17
+          - armv7
+          - s390x
+          - ppc64le
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -45,8 +51,9 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        #target: [x64, x86]  # x86 blocked by blst 0.3.11 build failure
-        target: [x64]
+        target:
+          - x64
+          # - x86  # x86 blocked by blst 0.3.11 build failure
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4

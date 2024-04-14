@@ -11,5 +11,4 @@ foundry-evm = { git = "https://github.com/foundry-rs/foundry", rev = "0ab9e3c6fb
 revm = "6.1"
 revm-interpreter = "=3.1"
 pyo3 = { version = "0.19", features = ["extension-module"] }
-
 ruint = { version = "1.10", features = ["pyo3"] }
