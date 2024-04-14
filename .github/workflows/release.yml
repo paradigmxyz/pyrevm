@@ -40,7 +40,7 @@ jobs:
     - uses: messense/maturin-action@v1
       with:
         command: build
-        args: --release -o dist --universal2 --find-interpreter
+        args: --release -o dist --target universal2-apple-darwin --find-interpreter
     - name: Upload wheels
       uses: actions/upload-artifact@v2
       with:
