@@ -3,7 +3,9 @@
 # ```
 # maturin generate-ci github
 # ```
-name: Release
+
+# run build scripts, and release to pypi if this is a tag publication
+name: Build
 
 on:
   push:
