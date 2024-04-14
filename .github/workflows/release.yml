@@ -27,7 +27,7 @@ jobs:
           - x86
             #- aarch64  # blocked by building ring>=0.17
           - armv7
-          - s390x
+            #- s390x  # blocked by ring>=0.17
           - ppc64le
     steps:
       - uses: actions/checkout@v3
