@@ -18,7 +18,7 @@ jobs:
 
       - uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: "1.1.15"
+          poetry-version: "1.8.1"
 
       - name: Install deps
         run: poetry install
