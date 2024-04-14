@@ -40,6 +40,11 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
+          # NOTE: pyo3 bindings (the default) will produce a separate wheel
+          # for every interpreter, while `--bindings cffi` will produce an
+          # interpreter-agnostic wheel. maturin actually uses `cffi` bindings
+          # for its own release process, but recommends using `pyo3` for new
+          # projects for some reason.
           args: --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: auto
