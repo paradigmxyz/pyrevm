@@ -89,6 +89,8 @@ To build the library, run `make build`. To run the tests, run `make test`.
 
 Note: If building for production, use `make build-prod`, else performance will be degraded.
 
+To release to pypi, create a new github release. This will run the `.github/workflows/release.yml` action and publish source+binary wheels to pypi.
+
 ## Benchmarks
 
 TODO
