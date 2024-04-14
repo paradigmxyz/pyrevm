@@ -9,8 +9,7 @@ classifiers = [
 
 [tool.poetry]
 name = "pyrevm"
-version = "0.2.7"
-description = ""
+description = "0.2.7"  # Cargo.toml needs to be updated for releases
 authors = ["Georgios Konstantopoulos <me@gakonst.com>"]
 
 [tool.poetry.dependencies]
