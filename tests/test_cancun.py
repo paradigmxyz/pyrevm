@@ -9,7 +9,7 @@ from tests.utils import load_contract_bin
 
 
 DEPLOYER = "0x1111111111111111111111111111111111111111"
-TRUSTED_SETUP = os.path.join(os.path.dirname(__file__), "fixtures/kzg_trusted_setup.txt")
+TRUSTED_SETUP = os.path.join(os.path.dirname(__file__), "fixtures/kzg_trusted_setup.txt")  # file from eth_account
 MIN_BLOB_BASE_FEE = 1
 BLOB_BASE_FEE_UPDATE_FRACTION = 3_338_477
 VERSIONED_HASH_VERSION_KZG = b"\x01"

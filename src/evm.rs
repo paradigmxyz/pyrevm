@@ -2,25 +2,25 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem::replace;
 
-use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
 use pyo3::types::PyBytes;
-use revm::{Evm, EvmContext, JournalCheckpoint as RevmCheckpoint, primitives::U256};
+use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
 use revm::precompile::{Address, Bytes};
+use revm::primitives::ExecutionResult::Success;
 use revm::primitives::{
     BlockEnv as RevmBlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult,
-    HandlerCfg, Output, SpecId, TransactTo, TxEnv as RevmTxEnv
+    HandlerCfg, Output, SpecId, TransactTo, TxEnv as RevmTxEnv,
 };
-use revm::primitives::ExecutionResult::Success;
+use revm::{primitives::U256, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint};
 use tracing::trace;
 
+use crate::database::DB;
+use crate::executor::call_evm;
+use crate::types::{PyByteVec, PyDB};
 use crate::{
     types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint, TxEnv},
     utils::{addr, pyerr},
 };
-use crate::database::DB;
-use crate::executor::call_evm;
-use crate::types::{PyByteVec, PyDB};
 
 #[derive(Debug)]
 #[pyclass]

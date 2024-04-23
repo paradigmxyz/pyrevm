@@ -7,16 +7,16 @@
 
 use pyo3::prelude::*;
 
-mod types;
-mod evm;
 mod database;
 mod empty_db_wrapper;
+mod evm;
 mod executor;
 mod pystdout;
+mod types;
 mod utils;
 
-pub use types::*;
 pub use evm::EVM;
+pub use types::*;
 pub use utils::fake_exponential;
 
 #[pymodule]
