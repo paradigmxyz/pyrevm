@@ -1,23 +1,12 @@
-import os
-from hashlib import sha256
-
-from ckzg import blob_to_kzg_commitment, load_trusted_setup
-
 from pyrevm import EVM, BlockEnv, TxEnv, fake_exponential
 
 from tests.utils import load_contract_bin
 
 
 DEPLOYER = "0x1111111111111111111111111111111111111111"
-TRUSTED_SETUP = os.path.join(os.path.dirname(__file__), "fixtures/kzg_trusted_setup.txt")  # file from eth_account
 MIN_BLOB_BASE_FEE = 1
 BLOB_BASE_FEE_UPDATE_FRACTION = 3_338_477
 VERSIONED_HASH_VERSION_KZG = b"\x01"
-
-
-def _ckg_hash(blob: bytes) -> bytes:
-    commitment = blob_to_kzg_commitment(blob, load_trusted_setup(TRUSTED_SETUP))
-    return VERSIONED_HASH_VERSION_KZG + sha256(commitment).digest()[1:]
 
 
 def test_blob_base_fee():
@@ -26,8 +15,9 @@ def test_blob_base_fee():
 
     deploy_address = evm.deploy(DEPLOYER, load_contract_bin("blob_base_fee.bin"))
 
-    blobs = [b"Vyper the language of the sneks!".rjust(32 * 4096)] * 6
-    evm.set_tx_env(TxEnv(max_fee_per_blob_gas=10**10, blob_hashes=[_ckg_hash(b) for b in blobs]))
+    # hash of b"Vyper the language of the sneks!".rjust(32 * 4096)
+    blob_hashes = 6 * [bytes.fromhex("01e378e5cef6f2a88abd923440aae7ce210414a610233aa457100f20f884d0de")]
+    evm.set_tx_env(TxEnv(max_fee_per_blob_gas=10**10, blob_hashes=blob_hashes))
     assert evm.env.block.blob_gasprice == MIN_BLOB_BASE_FEE
 
     evm.set_balance(DEPLOYER, 10**20)
