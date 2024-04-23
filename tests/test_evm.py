@@ -1,4 +1,5 @@
 import json
+import os
 
 from pyrevm import EVM, Env, BlockEnv, AccountInfo
 
@@ -9,7 +10,8 @@ import pytest
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
-fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+# use your own key during development to avoid rate limiting the CI job
+fork_url = os.getenv("FORK_URL") or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
 KWARG_CASES = [
     {"fork_url": fork_url},

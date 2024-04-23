@@ -1,7 +1,7 @@
 use std::default::Default;
 
 use pyo3::types::PyTuple;
-use pyo3::{pyclass, pymethods, types::PyBytes, PyErr, PyObject, PyResult, Python};
+use pyo3::{pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python};
 use revm::primitives::{
     Address, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
     Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
@@ -97,7 +97,7 @@ impl TxEnv {
                 .unwrap_or_default()
                 .iter()
                 .map(|tuple| {
-                    Ok::<(Address, Vec<U256>), PyErr>((
+                    Ok((
                         addr(tuple.get_item(0)?.extract()?)?,
                         tuple.get_item(1)?.extract::<Vec<U256>>()?,
                     ))
