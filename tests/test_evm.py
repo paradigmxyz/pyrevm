@@ -1,8 +1,10 @@
 import json
-import os.path
 
-import pytest
 from pyrevm import EVM, Env, BlockEnv, AccountInfo
+
+from tests.utils import load_contract_bin, encode_uint, encode_address
+import pytest
+
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
@@ -14,23 +16,6 @@ KWARG_CASES = [
     {"fork_url": fork_url, "tracing": False, "fork_block": "latest"},
     {},
 ]
-
-
-def load_contract_bin(contract_name: str) -> bytes:
-    with open(
-        f"{os.path.dirname(__file__)}/contracts/{contract_name}", "r"
-    ) as readfile:
-        hexstring = readfile.readline()
-    return bytes.fromhex(hexstring)
-
-
-def encode_uint(num: int) -> str:
-    encoded = hex(num)[2:]
-    return ("0" * (64 - len(encoded))) + encoded
-
-
-def encode_address(address: str) -> str:
-    return f'{"0" * 24}{address[2:]}'
 
 
 def test_revm_fork():
@@ -212,10 +197,14 @@ def test_tracing(capsys):
     assert evm.tracing
     captured = capsys.readouterr()
     traces = [json.loads(i) for i in captured.out.split("\n") if i]
-    assert {'gasUsed': '0xffffffffffff5011',
-            'output': '0x',
-            'pass': True,
-            'stateRoot': '0x0000000000000000000000000000000000000000000000000000000000000000'} == traces[-1]
+    expected = {
+        "fork": "Latest",
+        "gasUsed": "0xafee",
+        "output": "0x",
+        "pass": True,
+        "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    assert expected == traces[-1]
     assert len(traces) == 128
 
 

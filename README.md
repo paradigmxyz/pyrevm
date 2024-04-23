@@ -79,7 +79,7 @@ evm.revert(checkpoint)  # or: evm.commit() to clear all checkpoints
 
 **Note**: in contrast to the Rust library, the Python library does not automatically commit to database.
 
-See more usage examples in the [pytests](./pytest/test.py).
+See more usage examples in the [pytests](tests/test_evm.py).
 
 ## Develop
 

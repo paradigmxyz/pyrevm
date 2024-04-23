@@ -8,16 +8,16 @@
 use pyo3::prelude::*;
 
 mod types;
-pub use types::*;
-
 mod evm;
-pub use evm::EVM;
-
 mod database;
 mod empty_db_wrapper;
 mod executor;
 mod pystdout;
 mod utils;
+
+pub use types::*;
+pub use evm::EVM;
+pub use utils::fake_exponential;
 
 #[pymodule]
 fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -32,6 +32,7 @@ fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<ExecutionResult>()?;
     m.add_class::<Log>()?;
     m.add_class::<JournalCheckpoint>()?;
+    m.add_function(wrap_pyfunction!(fake_exponential, m)?)?;
 
     Ok(())
 }
