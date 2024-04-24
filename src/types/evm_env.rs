@@ -191,6 +191,20 @@ impl TxEnv {
         self.0.max_fee_per_blob_gas
     }
 
+    #[setter]
+    fn set_blob_hashes(&mut self, blob_hashes: Vec<&PyBytes>) -> PyResult<()> {
+        self.0.blob_hashes = blob_hashes
+            .iter()
+            .map(|b| from_pybytes(b))
+            .collect::<PyResult<Vec<B256>>>()?;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_max_fee_per_blob_gas(&mut self, max_fee_per_blob_gas: Option<U256>) {
+        self.0.max_fee_per_blob_gas = max_fee_per_blob_gas;
+    }
+
     fn __str__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
@@ -294,6 +308,21 @@ impl BlockEnv {
             .blob_excess_gas_and_price
             .clone()
             .map(|i| i.blob_gasprice)
+    }
+
+    #[setter]
+    fn set_number(&mut self, number: U256) {
+        self.0.number = number;
+    }
+
+    #[setter]
+    fn set_timestamp(&mut self, timestamp: U256) {
+        self.0.timestamp = timestamp;
+    }
+
+    #[setter]
+    fn set_excess_blob_gas(&mut self, excess_blob_gas: Option<u64>) {
+        self.0.blob_excess_gas_and_price = excess_blob_gas.map(|i| BlobExcessGasAndPrice::new(i));
     }
 
     fn __str__(&self) -> PyResult<String> {
