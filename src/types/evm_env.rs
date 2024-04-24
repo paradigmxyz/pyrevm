@@ -322,7 +322,7 @@ impl BlockEnv {
 
     #[setter]
     fn set_excess_blob_gas(&mut self, excess_blob_gas: Option<u64>) {
-        self.0.blob_excess_gas_and_price = excess_blob_gas.map(|i| BlobExcessGasAndPrice::new(i));
+        self.0.blob_excess_gas_and_price = excess_blob_gas.map(BlobExcessGasAndPrice::new);
     }
 
     fn __str__(&self) -> PyResult<String> {
