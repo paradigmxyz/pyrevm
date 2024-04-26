@@ -239,16 +239,15 @@ impl BlockEnv {
         gas_limit: Option<U256>,
         excess_blob_gas: Option<u64>,
     ) -> PyResult<Self> {
-        let prevrandao = match prevrandao {
-            Some(b) => from_pybytes(b)?,
-            None => B256::ZERO,
-        };
         Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default(),
             coinbase: addr_or_zero(coinbase)?,
             timestamp: timestamp.unwrap_or(U256::from(1)),
             difficulty: difficulty.unwrap_or_default(),
-            prevrandao: Some(prevrandao),
+            prevrandao: Some(match prevrandao {
+                Some(b) => from_pybytes(b)?,
+                None => B256::ZERO,
+            }),
             basefee: basefee.unwrap_or_default(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(

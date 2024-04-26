@@ -225,3 +225,27 @@ def test_blueprint():
 
     deployer_address = evm.deploy(address, deploy_bytecode)
     assert evm.basic(deployer_address).code.hex().rstrip('0') in deploy_bytecode.hex()
+
+
+def test_block_setters():
+    evm = EVM()
+    block_env = evm.env.block
+    block_env.number = 20
+    block_env.timestamp = 100
+    block_env.excess_blob_gas = 200
+    assert block_env.number == 20
+    assert block_env.timestamp == 100
+    assert block_env.excess_blob_gas == 200
+    evm.set_block_env(block_env)
+    assert evm.env.block.number == 20
+
+
+def test_tx_setters():
+    evm = EVM()
+    tx_env = evm.env.tx
+    tx_env.blob_hashes = [b"1" * 32]
+    tx_env.max_fee_per_blob_gas = 100
+    assert tx_env.blob_hashes == [b"1" * 32]
+    assert tx_env.max_fee_per_blob_gas == 100
+    evm.set_tx_env(tx_env)
+    assert evm.env.tx.blob_hashes == [b"1" * 32]
