@@ -33,6 +33,14 @@ class BlockEnv:
     def gas_limit(self) -> Optional[int]: ...
     @property
     def excess_blob_gas(self) -> Optional[int]: ...
+    @property
+    def blob_gasprice(self) -> Optional[int]: ...
+    @number.setter
+    def number(self, value: Optional[int]) -> None: ...
+    @timestamp.setter
+    def timestamp(self, value: Optional[int]) -> None: ...
+    @excess_blob_gas.setter
+    def excess_blob_gas(self, value: Optional[int]) -> None: ...
 
 class TxEnv:
     def __new__(
@@ -47,6 +55,9 @@ class TxEnv:
         chain_id: Optional[int] = None,
         nonce: Optional[int] = None,
         salt: Optional[int] = None,
+        access_list: Optional[list[tuple[str, list[int]]]] = None,
+        blob_hashes: Optional[list[bytes]] = None,
+        max_fee_per_blob_gas: Optional[int] = None,
     ) -> "TxEnv": ...
 
     @property
@@ -67,6 +78,18 @@ class TxEnv:
     def chain_id(self) -> Optional[int]: ...
     @property
     def nonce(self) -> Optional[int]: ...
+    @property
+    def salt(self) -> Optional[int]: ...
+    @property
+    def access_list(self) -> list[tuple[str, list[int]]]: ...
+    @property
+    def blob_hashes(self) -> list[bytes]: ...
+    @property
+    def max_fee_per_blob_gas(self) -> Optional[int]: ...
+    @blob_hashes.setter
+    def blob_hashes(self, value: list[bytes]) -> None: ...
+    @max_fee_per_blob_gas.setter
+    def max_fee_per_blob_gas(self, value: Optional[int]) -> None: ...
 
 class Env:
     def __new__(
@@ -292,6 +315,9 @@ class EVM:
     def set_block_env(self: "EVM", block: BlockEnv) -> None:
         """ Set the block environment. """
 
+    def set_tx_env(self: "EVM", block: TxEnv) -> None:
+        """ Set the transaction environment. """
+
     def reset_transient_storage(self: "EVM") -> None:
         """ Reset the transient storage. """
 
@@ -306,3 +332,6 @@ class Log:
     @property
     def data(self) -> tuple[list[bytes], bytes]:
         """ :return: A tuple with a list of topics and the log data. """
+
+
+def fake_exponential(factor: int, numerator: int, denominator: int) -> int: ...

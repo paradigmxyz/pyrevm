@@ -1,0 +1,11 @@
+61005c61000f60003961005c6000f35f3560e01c63cc883ac481186100545734610058575f6006905b80604052604051497f73e54e9a959ad956dd87037a0689aa5839a0d4dc4b8748c5a6160a2838e7bc695f6060a2600101818118610019575050005b5f5ffd5b5f80fd84185c8000a16576797065728300030b0012
+
+Only the first line is read in the tests. This was generated based on the following Vyper code:
+
+event Blobhash:
+    blobs: indexed(bytes32)
+
+@external
+def log_blobhashes():
+    for i: uint256 in range(6):
+        log Blobhash(blobhash(i))

@@ -12,4 +12,4 @@ build-prod:
 	poetry run maturin develop --release
 
 test: build
-	poetry run pytest -s pytest/*
+	poetry run pytest -s tests/*

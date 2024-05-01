@@ -1,36 +1,23 @@
 import json
-import os.path
+import os
 
+from pyrevm import EVM, Env, BlockEnv, AccountInfo, TxEnv
+
+from tests.utils import load_contract_bin, encode_uint, encode_address
 import pytest
-from pyrevm import EVM, Env, BlockEnv, AccountInfo
+
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
-fork_url = "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+# use your own key during development to avoid rate limiting the CI job
+fork_url = os.getenv("FORK_URL") or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 
 KWARG_CASES = [
     {"fork_url": fork_url},
     {"fork_url": fork_url, "tracing": False, "fork_block": "latest"},
     {},
 ]
-
-
-def load_contract_bin(contract_name: str) -> bytes:
-    with open(
-        f"{os.path.dirname(__file__)}/contracts/{contract_name}", "r"
-    ) as readfile:
-        hexstring = readfile.readline()
-    return bytes.fromhex(hexstring)
-
-
-def encode_uint(num: int) -> str:
-    encoded = hex(num)[2:]
-    return ("0" * (64 - len(encoded))) + encoded
-
-
-def encode_address(address: str) -> str:
-    return f'{"0" * 24}{address[2:]}'
 
 
 def test_revm_fork():
@@ -212,10 +199,14 @@ def test_tracing(capsys):
     assert evm.tracing
     captured = capsys.readouterr()
     traces = [json.loads(i) for i in captured.out.split("\n") if i]
-    assert {'gasUsed': '0xffffffffffff5011',
-            'output': '0x',
-            'pass': True,
-            'stateRoot': '0x0000000000000000000000000000000000000000000000000000000000000000'} == traces[-1]
+    expected = {
+        "fork": "Latest",
+        "gasUsed": "0xafee",
+        "output": "0x",
+        "pass": True,
+        "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    }
+    assert expected == traces[-1]
     assert len(traces) == 128
 
 
@@ -234,3 +225,58 @@ def test_blueprint():
 
     deployer_address = evm.deploy(address, deploy_bytecode)
     assert evm.basic(deployer_address).code.hex().rstrip('0') in deploy_bytecode.hex()
+
+
+def test_block_setters():
+    evm = EVM()
+    block_env = evm.env.block
+    block_env.number = 20
+    block_env.timestamp = 100
+    block_env.excess_blob_gas = 200
+    assert block_env.number == 20
+    assert block_env.timestamp == 100
+    assert block_env.excess_blob_gas == 200
+    evm.set_block_env(block_env)
+    assert evm.env.block.number == 20
+
+
+def test_tx_setters():
+    evm = EVM()
+    tx_env = evm.env.tx
+    tx_env.blob_hashes = [b"1" * 32]
+    tx_env.max_fee_per_blob_gas = 100
+    assert tx_env.blob_hashes == [b"1" * 32]
+    assert tx_env.max_fee_per_blob_gas == 100
+    evm.set_tx_env(tx_env)
+    assert evm.env.tx.blob_hashes == [b"1" * 32]
+
+
+@pytest.mark.parametrize("excess_blob_gas,expected_fee", [(0, 1), (10**3, 1), (2**24, 152), (2**26, 537070730)])
+def test_get_blobbasefee(excess_blob_gas, expected_fee):
+    evm = EVM()
+    evm.set_block_env(BlockEnv(excess_blob_gas=excess_blob_gas))
+    bytecode = load_contract_bin("blob_base_fee.bin")
+    deployer_address = evm.deploy(address, bytecode)
+    blobbasefee = evm.message_call(
+        caller=address,
+        to=deployer_address,
+        calldata=bytes.fromhex("5fb0146d"),  # method_id("get_blobbasefee()")
+    )
+    assert int.from_bytes(blobbasefee, "big") == expected_fee
+
+
+@pytest.mark.parametrize("blob_hashes", [[b"1" * 32] * 2, [b"2" * 32] * 6])
+def test_get_blobhashes(blob_hashes):
+    evm = EVM()
+    evm.set_tx_env(TxEnv(blob_hashes=blob_hashes))
+    bytecode = load_contract_bin("blob_hash.bin")
+    deployer_address = evm.deploy(address, bytecode)
+    evm.message_call(
+        caller=address,
+        to=deployer_address,
+        calldata=bytes.fromhex("cc883ac4"),  # method_id("log_blobhashes()")
+    )
+    logged = [log.data[0][1] for log in evm.result.logs]
+
+    # the contract logs 6 blob hashes, so pad with 0s
+    assert logged == blob_hashes + [b"\0" * 32] * (6 - len(blob_hashes))

@@ -22,7 +22,7 @@ pub(crate) fn call_evm(
     is_static: bool,
 ) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
     if tracing {
-        let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}), true);
+        let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}));
         let evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
                 cfg: handler_cfg,
@@ -162,7 +162,7 @@ fn output<EXT>(
     replace(&mut context.evm.error, Ok(())).map_err(pyerr)?;
     // used gas with refund calculated.
     let gas_refunded = result.gas().refunded() as u64;
-    let final_gas_used = result.gas().spend() - gas_refunded;
+    let final_gas_used = result.gas().spent() - gas_refunded;
     let output = result.output();
     let instruction_result = result.into_interpreter_result();
 

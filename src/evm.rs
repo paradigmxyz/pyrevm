@@ -1,10 +1,7 @@
-use crate::database::DB;
-use crate::executor::call_evm;
-use crate::types::{PyByteVec, PyDB};
-use crate::{
-    types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint},
-    utils::{addr, pyerr},
-};
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::mem::replace;
+
 use pyo3::exceptions::{PyKeyError, PyOverflowError};
 use pyo3::types::PyBytes;
 use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
@@ -12,13 +9,18 @@ use revm::precompile::{Address, Bytes};
 use revm::primitives::ExecutionResult::Success;
 use revm::primitives::{
     BlockEnv as RevmBlockEnv, CreateScheme, Env as RevmEnv, ExecutionResult as RevmExecutionResult,
-    HandlerCfg, Output, SpecId, TransactTo, TxEnv,
+    HandlerCfg, Output, SpecId, TransactTo, TxEnv as RevmTxEnv,
 };
 use revm::{primitives::U256, Evm, EvmContext, JournalCheckpoint as RevmCheckpoint};
-use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
-use std::mem::replace;
 use tracing::trace;
+
+use crate::database::DB;
+use crate::executor::call_evm;
+use crate::types::{PyByteVec, PyDB};
+use crate::{
+    types::{AccountInfo, BlockEnv, Env, ExecutionResult, JournalCheckpoint, TxEnv},
+    utils::{addr, pyerr},
+};
 
 #[derive(Debug)]
 #[pyclass]
@@ -274,6 +276,10 @@ impl EVM {
         self.context.env.block = block.into();
     }
 
+    fn set_tx_env(&mut self, tx: TxEnv) {
+        self.context.env.tx = tx.into();
+    }
+
     fn reset_transient_storage(&mut self) {
         self.context.journaled_state.transient_storage.clear();
     }
@@ -307,7 +313,7 @@ impl EVM {
                 gas_limit: self.gas_limit,
                 ..self.context.env.block.clone()
             },
-            tx: TxEnv {
+            tx: RevmTxEnv {
                 caller,
                 transact_to,
                 data,

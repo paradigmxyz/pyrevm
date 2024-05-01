@@ -1,11 +1,13 @@
-use crate::utils::{addr, addr_or_zero};
-use pyo3::{
-    exceptions::PyTypeError, pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python,
-};
+use std::default::Default;
+
+use pyo3::types::PyTuple;
+use pyo3::{pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python};
 use revm::primitives::{
-    BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
+    Address, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
     Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
 };
+
+use crate::utils::{addr, addr_or_zero, from_pybytes};
 
 #[pyclass]
 #[derive(Clone, Debug, Default)]
@@ -72,6 +74,9 @@ impl TxEnv {
         chain_id: Option<u64>,
         nonce: Option<u64>,
         salt: Option<U256>,
+        access_list: Option<Vec<&PyTuple /*str, list[int]*/>>,
+        blob_hashes: Option<Vec<&PyBytes>>,
+        max_fee_per_blob_gas: Option<U256>,
     ) -> PyResult<Self> {
         Ok(TxEnv(RevmTxEnv {
             caller: addr_or_zero(caller)?,
@@ -88,8 +93,22 @@ impl TxEnv {
             data: data.unwrap_or_default().into(),
             chain_id,
             nonce,
-            // TODO: Add access list.
-            ..Default::default()
+            access_list: access_list
+                .unwrap_or_default()
+                .iter()
+                .map(|tuple| {
+                    Ok((
+                        addr(tuple.get_item(0)?.extract()?)?,
+                        tuple.get_item(1)?.extract::<Vec<U256>>()?,
+                    ))
+                })
+                .collect::<PyResult<Vec<(Address, Vec<U256>)>>>()?,
+            blob_hashes: blob_hashes
+                .unwrap_or_default()
+                .iter()
+                .map(|b| from_pybytes(b))
+                .collect::<PyResult<Vec<B256>>>()?,
+            max_fee_per_blob_gas,
         }))
     }
 
@@ -149,6 +168,43 @@ impl TxEnv {
         None
     }
 
+    #[getter]
+    fn access_list(&self) -> Vec<(String, Vec<U256>)> {
+        self.0
+            .access_list
+            .iter()
+            .map(|(a, b)| (a.to_string(), b.clone()))
+            .collect()
+    }
+
+    #[getter]
+    fn blob_hashes(&self, py: Python<'_>) -> Vec<PyObject> {
+        self.0
+            .blob_hashes
+            .iter()
+            .map(|i| PyBytes::new(py, i.0.as_ref()).into())
+            .collect()
+    }
+
+    #[getter]
+    fn max_fee_per_blob_gas(&self) -> Option<U256> {
+        self.0.max_fee_per_blob_gas
+    }
+
+    #[setter]
+    fn set_blob_hashes(&mut self, blob_hashes: Vec<&PyBytes>) -> PyResult<()> {
+        self.0.blob_hashes = blob_hashes
+            .iter()
+            .map(|b| from_pybytes(b))
+            .collect::<PyResult<Vec<B256>>>()?;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_max_fee_per_blob_gas(&mut self, max_fee_per_blob_gas: Option<U256>) {
+        self.0.max_fee_per_blob_gas = max_fee_per_blob_gas;
+    }
+
     fn __str__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
@@ -183,18 +239,15 @@ impl BlockEnv {
         gas_limit: Option<U256>,
         excess_blob_gas: Option<u64>,
     ) -> PyResult<Self> {
-        let prevrandao = match prevrandao {
-            Some(b) => {
-                B256::try_from(b.as_bytes()).map_err(|e| PyTypeError::new_err(e.to_string()))?
-            }
-            None => B256::ZERO,
-        };
         Ok(BlockEnv(RevmBlockEnv {
             number: number.unwrap_or_default(),
             coinbase: addr_or_zero(coinbase)?,
             timestamp: timestamp.unwrap_or(U256::from(1)),
             difficulty: difficulty.unwrap_or_default(),
-            prevrandao: Some(prevrandao),
+            prevrandao: Some(match prevrandao {
+                Some(b) => from_pybytes(b)?,
+                None => B256::ZERO,
+            }),
             basefee: basefee.unwrap_or_default(),
             gas_limit: gas_limit.unwrap_or_else(|| U256::from(u64::MAX)),
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(
@@ -246,6 +299,29 @@ impl BlockEnv {
             .blob_excess_gas_and_price
             .clone()
             .map(|i| i.excess_blob_gas)
+    }
+
+    #[getter]
+    fn blob_gasprice(&self) -> Option<u128> {
+        self.0
+            .blob_excess_gas_and_price
+            .clone()
+            .map(|i| i.blob_gasprice)
+    }
+
+    #[setter]
+    fn set_number(&mut self, number: U256) {
+        self.0.number = number;
+    }
+
+    #[setter]
+    fn set_timestamp(&mut self, timestamp: U256) {
+        self.0.timestamp = timestamp;
+    }
+
+    #[setter]
+    fn set_excess_blob_gas(&mut self, excess_blob_gas: Option<u64>) {
+        self.0.blob_excess_gas_and_price = excess_blob_gas.map(BlobExcessGasAndPrice::new);
     }
 
     fn __str__(&self) -> PyResult<String> {

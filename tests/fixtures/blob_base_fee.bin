@@ -1,0 +1,8 @@
+61002661000f6000396100266000f35f3560e01c635fb0146d811861001e5734610022574a60405260206040f35b5f5ffd5b5f80fd8418268000a16576797065728300030b0012
+
+Only the first line is read in the tests. This was generated based on the following Vyper code:
+
+@external
+@view
+def get_blobbasefee() -> uint256:
+    return block.blobbasefee

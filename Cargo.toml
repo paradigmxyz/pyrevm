@@ -7,11 +7,11 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-revm = { "version"="7.1.0", features=["ethersdb", "serde", "serde-json", "std"] }
-revm-interpreter = "3.3.0"
-tracing = "0.1"
+revm = { "version"="8.0.0", features=["ethersdb", "serde", "serde-json", "std"] }
+revm-interpreter = "4.0.0"
+tracing = "0.1.40"
 pyo3 = { version = "0.19", features = ["extension-module"] }
-ruint = { version = "1.10", features = ["pyo3"] }
+ruint = { version = "1.12.1", features = ["pyo3"] }
 
 # needed for ethersdb
 ethers-core = "2.0.14"
