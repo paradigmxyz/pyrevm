@@ -1,7 +1,7 @@
 import json
 import os
 
-from pyrevm import EVM, Env, BlockEnv, AccountInfo
+from pyrevm import EVM, Env, BlockEnv, AccountInfo, TxEnv
 
 from tests.utils import load_contract_bin, encode_uint, encode_address
 import pytest
@@ -249,3 +249,34 @@ def test_tx_setters():
     assert tx_env.max_fee_per_blob_gas == 100
     evm.set_tx_env(tx_env)
     assert evm.env.tx.blob_hashes == [b"1" * 32]
+
+
+@pytest.mark.parametrize("excess_blob_gas,expected_fee", [(0, 1), (10**3, 1), (2**24, 152), (2**26, 537070730)])
+def test_get_blobbasefee(excess_blob_gas, expected_fee):
+    evm = EVM()
+    evm.set_block_env(BlockEnv(excess_blob_gas=excess_blob_gas))
+    bytecode = load_contract_bin("blob_base_fee.bin")
+    deployer_address = evm.deploy(address, bytecode)
+    blobbasefee = evm.message_call(
+        caller=address,
+        to=deployer_address,
+        calldata=bytes.fromhex("5fb0146d"),  # method_id("get_blobbasefee()")
+    )
+    assert int.from_bytes(blobbasefee, "big") == expected_fee
+
+
+@pytest.mark.parametrize("blob_hashes", [[b"1" * 32] * 2, [b"2" * 32] * 6])
+def test_get_blobhashes(blob_hashes):
+    evm = EVM()
+    evm.set_tx_env(TxEnv(blob_hashes=blob_hashes))
+    bytecode = load_contract_bin("blob_hash.bin")
+    deployer_address = evm.deploy(address, bytecode)
+    evm.message_call(
+        caller=address,
+        to=deployer_address,
+        calldata=bytes.fromhex("cc883ac4"),  # method_id("log_blobhashes()")
+    )
+    logged = [log.data[0][1] for log in evm.result.logs]
+
+    # the contract logs 6 blob hashes, so pad with 0s
+    assert logged == blob_hashes + [b"\0" * 32] * (6 - len(blob_hashes))
