@@ -2,16 +2,16 @@ use std::mem::replace;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
-use revm::{
-    Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult, FrameResult,
-    inspector_handle_register,
-};
 use revm::inspectors::TracerEip3155;
 use revm::precompile::Log;
-use revm::primitives::{ExecutionResult, ShanghaiSpec};
 use revm::primitives::TransactTo;
-use revm_interpreter::{CallInputs, CreateInputs, gas, SuccessOrHalt};
+use revm::primitives::{ExecutionResult, ShanghaiSpec};
+use revm::{
+    inspector_handle_register, Context, ContextWithHandlerCfg, Evm, EvmContext, FrameOrResult,
+    FrameResult,
+};
 use revm_interpreter::primitives::HandlerCfg;
+use revm_interpreter::{gas, CallInputs, CreateInputs, SuccessOrHalt};
 
 use crate::database::DB;
 use crate::utils::pyerr;
@@ -51,10 +51,7 @@ pub(crate) fn call_evm(
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(
-    evm: &mut Evm<'_, EXT, DB>,
-    is_static: bool,
-) -> PyResult<ExecutionResult> {
+fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool) -> PyResult<ExecutionResult> {
     let logs_i = evm.context.evm.journaled_state.logs.len();
 
     evm.handler
@@ -139,7 +136,7 @@ fn run_evm<EXT>(
     let logs = ctx.evm.journaled_state.logs[logs_i..].to_vec();
 
     // Returns output of transaction.
-    Ok(output(ctx, result, logs)?)
+    output(ctx, result, logs)
 }
 
 fn call_inputs<EXT>(

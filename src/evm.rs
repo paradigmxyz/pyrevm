@@ -368,6 +368,7 @@ impl EVM {
         }
     }
 
+    #[allow(clippy::useless_asref)]
     fn run_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<RevmExecutionResult> {
         self.context.env = Box::new(env);
         let evm_context: EvmContext<DB> =
