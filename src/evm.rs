@@ -368,7 +368,6 @@ impl EVM {
         }
     }
 
-    #[allow(clippy::useless_asref)]
     fn run_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<RevmExecutionResult> {
         self.context.env = Box::new(env);
         let evm_context: EvmContext<DB> =
@@ -376,7 +375,7 @@ impl EVM {
         let (result, evm_context) =
             call_evm(evm_context, self.handler_cfg, self.tracing, is_static);
         self.context = evm_context;
-        self.result = result.as_ref().map(|r| r.clone()).ok();
+        self.result = result.as_ref().ok().cloned();
         result
     }
 }
