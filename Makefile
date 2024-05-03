@@ -13,3 +13,7 @@ build-prod:
 
 test: build
 	poetry run pytest -s tests/*
+
+lint:
+	cargo clippy --workspace --all-targets --all-features
+	cargo fmt --all

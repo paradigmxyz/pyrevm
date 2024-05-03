@@ -1,5 +1,5 @@
-use crate::database::DB;
-use crate::utils::pyerr;
+use std::mem::replace;
+
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyResult;
 use revm::inspectors::TracerEip3155;
@@ -12,7 +12,9 @@ use revm::{
 };
 use revm_interpreter::primitives::HandlerCfg;
 use revm_interpreter::{gas, CallInputs, CreateInputs, SuccessOrHalt};
-use std::mem::replace;
+
+use crate::database::DB;
+use crate::utils::pyerr;
 
 /// Calls the EVM with the given context and handler configuration.
 pub(crate) fn call_evm(
@@ -20,10 +22,10 @@ pub(crate) fn call_evm(
     handler_cfg: HandlerCfg,
     tracing: bool,
     is_static: bool,
-) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+) -> (PyResult<ExecutionResult>, EvmContext<DB>) {
     if tracing {
         let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}));
-        let evm = Evm::builder()
+        let mut evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
                 cfg: handler_cfg,
                 context: Context {
@@ -33,9 +35,9 @@ pub(crate) fn call_evm(
             })
             .append_handler_register(inspector_handle_register)
             .build();
-        run_evm(evm, is_static)
+        (run_evm(&mut evm, is_static), evm.context.evm)
     } else {
-        let evm = Evm::builder()
+        let mut evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
                 cfg: handler_cfg,
                 context: Context {
@@ -44,15 +46,12 @@ pub(crate) fn call_evm(
                 },
             })
             .build();
-        run_evm(evm, is_static)
+        (run_evm(&mut evm, is_static), evm.context.evm)
     }
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(
-    mut evm: Evm<'_, EXT, DB>,
-    is_static: bool,
-) -> PyResult<(ExecutionResult, EvmContext<DB>)> {
+fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool) -> PyResult<ExecutionResult> {
     let logs_i = evm.context.evm.journaled_state.logs.len();
 
     evm.handler
@@ -137,7 +136,7 @@ fn run_evm<EXT>(
     let logs = ctx.evm.journaled_state.logs[logs_i..].to_vec();
 
     // Returns output of transaction.
-    Ok((output(ctx, result, logs)?, evm.context.evm))
+    output(ctx, result, logs)
 }
 
 fn call_inputs<EXT>(
