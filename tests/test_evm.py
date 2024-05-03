@@ -280,3 +280,20 @@ def test_get_blobhashes(blob_hashes):
 
     # the contract logs 6 blob hashes, so pad with 0s
     assert logged == blob_hashes + [b"\0" * 32] * (6 - len(blob_hashes))
+
+
+@pytest.mark.parametrize("kwargs", KWARG_CASES)
+def test_call_reverting(kwargs):
+    evm = EVM()
+    code = load_contract_bin("min.bin")
+    deploy_address = evm.deploy(address, code)
+
+    with pytest.raises(RuntimeError) as err:
+        evm.message_call(
+            caller=address,
+            to=deploy_address,
+            value=10,
+        )
+
+    assert evm.get_code(deploy_address), "The code should still be deployed after revert"
+    assert str(err.value).startswith("Transaction(LackOfFundForMaxFee")

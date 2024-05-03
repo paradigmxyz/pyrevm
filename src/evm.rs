@@ -373,9 +373,9 @@ impl EVM {
         let evm_context: EvmContext<DB> =
             replace(&mut self.context, EvmContext::new(DB::new_memory()));
         let (result, evm_context) =
-            call_evm(evm_context, self.handler_cfg, self.tracing, is_static)?;
+            call_evm(evm_context, self.handler_cfg, self.tracing, is_static);
         self.context = evm_context;
-        self.result = Some(result.clone());
-        Ok(result)
+        self.result = result.as_ref().map(|r| r.clone()).ok();
+        result
     }
 }
