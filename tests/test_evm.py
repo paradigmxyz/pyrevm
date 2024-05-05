@@ -57,7 +57,7 @@ def test_fork_storage():
     weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
     evm = EVM(fork_url=fork_url, fork_block="latest")
     value = evm.storage(weth, 0)
-    assert value is not None and value > 0
+    assert value > 0
 
 
 def test_deploy():
