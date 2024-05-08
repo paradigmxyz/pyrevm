@@ -3,7 +3,7 @@ use pyo3::types::PyBytes;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use revm::precompile::B256;
 use revm::primitives::{fake_exponential as revm_fake_exponential, Address};
-use std::fmt::Debug;
+use std::fmt;
 
 pub(crate) fn addr(s: &str) -> Result<Address, PyErr> {
     s.parse::<Address>()
@@ -18,8 +18,8 @@ pub(crate) fn addr_or_zero(s: Option<&str>) -> Result<Address, PyErr> {
 }
 
 /// Convert a Rust error into a Python error.
-pub(crate) fn pyerr<T: Debug>(err: T) -> PyErr {
-    PyRuntimeError::new_err(format!("{:?}", err))
+pub(crate) fn pyerr<T: fmt::Debug>(err: T) -> PyErr {
+    PyRuntimeError::new_err(format!("{err:?}"))
 }
 
 pub(crate) fn from_pybytes(b: &PyBytes) -> PyResult<B256> {

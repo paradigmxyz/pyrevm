@@ -257,7 +257,7 @@ class EVM:
         :param balance: The balance.
         """
 
-    def storage(self: "EVM", address: str, index: int) -> Optional[int]:
+    def storage(self: "EVM", address: str, index: int) -> int:
         """
         Returns the storage value of the given address at the given index.
         :param address: The address.
@@ -265,7 +265,7 @@ class EVM:
         :return: The storage value.
         """
 
-    def block_hash(self: "EVM", number: int) -> Optional[bytes]:
+    def block_hash(self: "EVM", number: int) -> bytes:
         """
         Returns the block hash of the given number.
         :param number: The number.

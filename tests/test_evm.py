@@ -1,17 +1,19 @@
 import json
 import os
 
-from pyrevm import EVM, Env, BlockEnv, AccountInfo, TxEnv
+from pyrevm import EVM, AccountInfo, BlockEnv, Env, TxEnv
 
-from tests.utils import load_contract_bin, encode_uint, encode_address
 import pytest
-
+from tests.utils import encode_address, encode_uint, load_contract_bin
 
 address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
 address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 # use your own key during development to avoid rate limiting the CI job
-fork_url = os.getenv("FORK_URL") or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+fork_url = (
+    os.getenv("FORK_URL")
+    or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+)
 
 KWARG_CASES = [
     {"fork_url": fork_url},
@@ -40,7 +42,7 @@ def test_revm_fork():
     evm.message_call(
         caller=address,
         to=address2,
-        value=10000
+        value=10000,
         # data
     )
 
@@ -49,6 +51,13 @@ def test_revm_fork():
     assert info is not None
     assert vb_before != evm.basic(address)
     assert info.balance == 10000
+
+
+def test_fork_storage():
+    weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    evm = EVM(fork_url=fork_url, fork_block="latest")
+    value = evm.storage(weth, 0)
+    assert value > 0
 
 
 def test_deploy():
@@ -65,13 +74,13 @@ def test_deploy():
 
     assert deployed_at == "0x3e4ea2156166390f880071d94458efb098473311"
     deployed_code = evm.get_code(deployed_at)
-    assert deployed_code.hex().rstrip('0') in code.hex()
+    assert deployed_code.hex().rstrip("0") in code.hex()
     assert evm.basic(deployed_at).code.hex() == deployed_code.hex()
 
     result = evm.message_call(
         address,
         deployed_at,
-        calldata=b'\xc2\x98Ux'  # ==method_id('foo()')
+        calldata=b"\xc2\x98Ux",  # ==method_id('foo()')
     )
     assert int(result.hex(), 16) == 123
 
@@ -92,7 +101,10 @@ def test_balances():
 
 
 def test_balances_fork():
-    evm = EVM(fork_url=fork_url, fork_block="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97")
+    evm = EVM(
+        fork_url=fork_url,
+        fork_block="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97",
+    )
 
     vb_before = evm.basic(address)
     assert vb_before.balance == 955628344913799071315
@@ -215,7 +227,7 @@ def test_blueprint():
     # bytecode based on vyper `@external def foo() -> uint256: return 123`
     bytecode = load_contract_bin("blueprint.bin")
 
-    bytecode = b"\xFE\x71\x00" + bytecode
+    bytecode = b"\xfe\x71\x00" + bytecode
     bytecode_len = len(bytecode)
     bytecode_len_hex = hex(bytecode_len)[2:].rjust(4, "0")
 
@@ -224,7 +236,7 @@ def test_blueprint():
     deploy_bytecode = deploy_preamble + bytecode
 
     deployer_address = evm.deploy(address, deploy_bytecode)
-    assert evm.basic(deployer_address).code.hex().rstrip('0') in deploy_bytecode.hex()
+    assert evm.basic(deployer_address).code.hex().rstrip("0") in deploy_bytecode.hex()
 
 
 def test_block_setters():
@@ -251,7 +263,10 @@ def test_tx_setters():
     assert evm.env.tx.blob_hashes == [b"1" * 32]
 
 
-@pytest.mark.parametrize("excess_blob_gas,expected_fee", [(0, 1), (10**3, 1), (2**24, 152), (2**26, 537070730)])
+@pytest.mark.parametrize(
+    "excess_blob_gas,expected_fee",
+    [(0, 1), (10**3, 1), (2**24, 152), (2**26, 537070730)],
+)
 def test_get_blobbasefee(excess_blob_gas, expected_fee):
     evm = EVM()
     evm.set_block_env(BlockEnv(excess_blob_gas=excess_blob_gas))
@@ -295,5 +310,7 @@ def test_call_reverting(kwargs):
             value=10,
         )
 
-    assert evm.get_code(deploy_address), "The code should still be deployed after revert"
+    assert evm.get_code(
+        deploy_address
+    ), "The code should still be deployed after revert"
     assert str(err.value).startswith("Transaction(LackOfFundForMaxFee")

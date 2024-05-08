@@ -125,18 +125,18 @@ impl EVM {
     }
 
     /// Get storage value of address at index.
-    fn storage(&mut self, address: &str, index: U256) -> PyResult<Option<U256>> {
-        let (account, _) = self.context.load_account(addr(address)?).map_err(pyerr)?;
-        Ok(account.storage.get(&index).map(|s| s.present_value))
+    fn storage(&mut self, address: &str, index: U256) -> PyResult<U256> {
+        let address = addr(address)?;
+        // `sload` expects the account to be already loaded.
+        let _ = self.context.load_account(address).map_err(pyerr)?;
+        let (value, _) = self.context.sload(address, index).map_err(pyerr)?;
+        Ok(value)
     }
 
     /// Get block hash by block number.
-    fn block_hash(&mut self, number: U256, py: Python<'_>) -> PyResult<Option<PyObject>> {
-        let bytes = self.context.block_hash(number).map_err(pyerr)?;
-        if bytes.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(PyBytes::new(py, bytes.as_ref()).into()))
+    fn block_hash(&mut self, number: U256, py: Python<'_>) -> PyResult<PyObject> {
+        let hash = self.context.block_hash(number).map_err(pyerr)?;
+        Ok(PyBytes::new(py, hash.as_ref()).into())
     }
 
     /// Inserts the provided account information in the database at the specified address.
@@ -153,14 +153,10 @@ impl EVM {
 
     /// Set the balance of a given address.
     fn set_balance(&mut self, address: &str, balance: U256) -> PyResult<()> {
-        let address_ = addr(address)?;
-        let account = {
-            let (account, _) = self.context.load_account(address_).map_err(pyerr)?;
-            account.info.balance = balance;
-            account.clone()
-        };
-        self.context.journaled_state.state.insert(address_, account);
-        self.context.journaled_state.touch(&address_);
+        let address = addr(address)?;
+        let (account, _) = self.context.load_account(address).map_err(pyerr)?;
+        account.info.balance = balance;
+        self.context.journaled_state.touch(&address);
         Ok(())
     }
 
@@ -342,10 +338,10 @@ impl EVM {
             if let Output::Create(out, address) = output {
                 Ok((out, address.unwrap()))
             } else {
-                Err(pyerr(output.clone()))
+                Err(pyerr(output))
             }
         } else {
-            Err(pyerr(result.clone()))
+            Err(pyerr(result))
         }
     }
 
