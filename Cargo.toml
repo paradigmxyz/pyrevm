@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-revm = { "version"="8.0.0", features=["ethersdb", "serde", "serde-json", "std"] }
+revm = { "version"="11.0.0", features=["ethersdb", "serde", "serde-json", "std"] }
 revm-interpreter = "4.0.0"
 tracing = "0.1.40"
 pyo3 = { version = "0.19", features = ["extension-module"] }
