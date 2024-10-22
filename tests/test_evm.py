@@ -11,8 +11,8 @@ address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 # use your own key during development to avoid rate limiting the CI job
 fork_url = (
-    os.getenv("FORK_URL")
-    or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
+        os.getenv("FORK_URL")
+        or "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27"
 )
 
 KWARG_CASES = [
@@ -58,6 +58,14 @@ def test_fork_storage():
     evm = EVM(fork_url=fork_url, fork_block="latest")
     value = evm.storage(weth, 0)
     assert value > 0
+
+
+def test_set_into_storage():
+    weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    evm = EVM(fork_url=fork_url, fork_block="latest")
+    evm.insert_account_storage(weth, 0, 10)
+    value = evm.storage(weth, 0)
+    assert value == 10
 
 
 def test_deploy():
@@ -265,7 +273,7 @@ def test_tx_setters():
 
 @pytest.mark.parametrize(
     "excess_blob_gas,expected_fee",
-    [(0, 1), (10**3, 1), (2**24, 152), (2**26, 537070730)],
+    [(0, 1), (10 ** 3, 1), (2 ** 24, 152), (2 ** 26, 537070730)],
 )
 def test_get_blobbasefee(excess_blob_gas, expected_fee):
     evm = EVM()

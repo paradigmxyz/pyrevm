@@ -1817,7 +1817,7 @@ dependencies = [
 
 [[package]]
 name = "pyrevm"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "ethers-core",
  "ethers-providers",
