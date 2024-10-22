@@ -54,10 +54,12 @@ impl DB {
         value: U256,
     ) -> PyResult<()> {
         match self {
-            DB::Memory(db) =>
-                db.insert_account_storage(address, slot, value).map_err(pyerr),
-            DB::Fork(db) =>
-                db.insert_account_storage(address, slot, value).map_err(pyerr),
+            DB::Memory(db) => db
+                .insert_account_storage(address, slot, value)
+                .map_err(pyerr),
+            DB::Fork(db) => db
+                .insert_account_storage(address, slot, value)
+                .map_err(pyerr),
         }
     }
 
