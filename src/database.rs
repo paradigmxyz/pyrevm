@@ -47,6 +47,20 @@ impl DB {
         }
     }
 
+    pub(crate) fn insert_insert_account_storage(
+        &mut self,
+        address: Address,
+        slot: U256,
+        value: U256,
+    ) -> PyResult<()> {
+        match self {
+            DB::Memory(db) =>
+                db.insert_account_storage(address, slot, value).map_err(pyerr),
+            DB::Fork(db) =>
+                db.insert_account_storage(address, slot, value).map_err(pyerr),
+        }
+    }
+
     pub(crate) fn get_accounts(&self) -> &HashMap<Address, DbAccount> {
         match self {
             DB::Memory(db) => &db.accounts,

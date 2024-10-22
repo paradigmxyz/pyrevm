@@ -201,6 +201,14 @@ class EVM:
         :param info: The account info.
         """
 
+    def insert_account_storage(self: "EVM", address: str, index: int, value: int) -> None:
+        """
+        Inserts the provided value for slot of in the database at the specified address
+        :param address: The address of the account.
+        :param index: slot in storage.
+        :param value: value for slot.
+        """
+
     def message_call(
         self: "EVM",
         caller: str,
