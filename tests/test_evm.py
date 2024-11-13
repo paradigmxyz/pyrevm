@@ -67,6 +67,25 @@ def test_set_into_storage():
     value = evm.storage(weth, 0)
     assert value == 10
 
+def test_set_into_storage_with_update():
+    weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    evm = EVM(fork_url=fork_url, fork_block="latest")
+    evm.insert_account_storage(weth, 0, 10)
+    value = evm.storage(weth, 0)
+    assert value == 10
+    evm.insert_account_storage(weth, 0, 20)
+    value = evm.storage(weth, 0)
+    assert value == 20
+
+def test_set_into_storage_old_value():
+    weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    evm = EVM(fork_url=fork_url, fork_block="latest")
+    old_value = evm.insert_account_storage(weth, 0, 10)
+    assert old_value == 0
+    old_value = evm.insert_account_storage(weth, 0, 20)
+    assert old_value == 10
+
+
 
 def test_deploy():
     evm = EVM()

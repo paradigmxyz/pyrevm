@@ -153,11 +153,30 @@ impl EVM {
     }
 
     /// Inserts the provided value for slot of in the database at the specified address
-    fn insert_account_storage(&mut self, address: &str, index: U256, value: U256) -> PyResult<()> {
+    fn insert_account_storage(
+        &mut self,
+        address: &str,
+        index: U256,
+        value: U256,
+    ) -> PyResult<U256> {
         let target = addr(address)?;
-        self.context
-            .db
-            .insert_insert_account_storage(target, index, value)
+
+        match self.context.journaled_state.state.get_mut(&target) {
+            // account is cold, just insert into the DB
+            None => {
+                self.context
+                    .db
+                    .insert_insert_account_storage(target, index, value)
+                    .map_err(pyerr)?;
+                self.context.load_account(target).map_err(pyerr)?;
+                Ok(U256::ZERO)
+            }
+            // just replace old value
+            Some(_) => {
+                let store_result = self.context.sstore(target, index, value).map_err(pyerr)?;
+                Ok(store_result.original_value)
+            }
+        }
     }
 
     /// Set the balance of a given address.
