@@ -9,7 +9,7 @@ classifiers = [
 
 [tool.poetry]
 name = "pyrevm"
-version = "0.3.3"  # Cargo.toml needs to be updated for releases
+version = "0.3.6"  # Cargo.toml needs to be updated for releases
 description = "Python bindings to rust evm (revm)"
 authors = ["Georgios Konstantopoulos <me@gakonst.com>", "Dani Popes", "Daniel Schiavini", "Charles Cooper"]
 

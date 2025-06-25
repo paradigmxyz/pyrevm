@@ -52,7 +52,8 @@ pub struct EVM {
 impl EVM {
     /// Create a new EVM instance.
     #[new]
-    #[pyo3(signature = (env = None, fork_url = None, fork_block = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST"))]
+    #[pyo3(signature = (env = None, fork_url = None, fork_block = None, gas_limit = 18446744073709551615, tracing = false, spec_id = "LATEST")
+    )]
     fn new(
         env: Option<Env>,
         fork_url: Option<&str>,
@@ -151,6 +152,33 @@ impl EVM {
         Ok(())
     }
 
+    /// Inserts the provided value for slot of in the database at the specified address
+    fn insert_account_storage(
+        &mut self,
+        address: &str,
+        index: U256,
+        value: U256,
+    ) -> PyResult<U256> {
+        let target = addr(address)?;
+
+        match self.context.journaled_state.state.get_mut(&target) {
+            // account is cold, just insert into the DB
+            None => {
+                self.context
+                    .db
+                    .insert_insert_account_storage(target, index, value)
+                    .map_err(pyerr)?;
+                self.context.load_account(target).map_err(pyerr)?;
+                Ok(U256::ZERO)
+            }
+            // just replace old value
+            Some(_) => {
+                let store_result = self.context.sstore(target, index, value).map_err(pyerr)?;
+                Ok(store_result.original_value)
+            }
+        }
+    }
+
     /// Set the balance of a given address.
     fn set_balance(&mut self, address: &str, balance: U256) -> PyResult<()> {
         let address = addr(address)?;
@@ -166,7 +194,8 @@ impl EVM {
         Ok(balance)
     }
 
-    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, gas_price = None, is_static = false))]
+    #[pyo3(signature = (caller, to, calldata = None, value = None, gas = None, gas_price = None, is_static = false)
+    )]
     pub fn message_call(
         &mut self,
         caller: &str,
@@ -193,7 +222,8 @@ impl EVM {
     }
 
     /// Deploy a contract with the given code.
-    #[pyo3(signature = (deployer, code, value = None, gas = None, gas_price = None, is_static = false, _abi = None))]
+    #[pyo3(signature = (deployer, code, value = None, gas = None, gas_price = None, is_static = false, _abi = None)
+    )]
     fn deploy(
         &mut self,
         deployer: &str,
