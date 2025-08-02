@@ -21,10 +21,18 @@ pub(crate) fn call_evm(
     evm_context: EvmContext<DB>,
     handler_cfg: HandlerCfg,
     tracing: bool,
+    with_memory: bool,
     is_static: bool,
 ) -> (PyResult<ExecutionResult>, EvmContext<DB>) {
     if tracing {
-        let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}));
+        let tracer = {
+            let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}));
+            if with_memory {
+                tracer.with_memory()
+            } else {
+                tracer
+            }
+        };
         let mut evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
                 cfg: handler_cfg,
