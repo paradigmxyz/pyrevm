@@ -215,7 +215,7 @@ impl EVM {
             gas,
             gas_price,
         );
-        match self.call_with_env(env, is_static) {
+        match self.call_with_env(env, is_static, true) {
             Ok(data) => Ok(PyBytes::new(py, data.as_ref()).into()),
             Err(e) => Err(e),
         }
@@ -362,7 +362,7 @@ impl EVM {
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let result = self.run_env(env, is_static)?;
+        let result = self.run_env(env, is_static, false)?;
 
         if let Success { output, .. } = result {
             if let Output::Create(out, address) = output {
@@ -375,14 +375,14 @@ impl EVM {
         }
     }
 
-    fn call_with_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<Bytes> {
+    fn call_with_env(&mut self, env: RevmEnv, is_static: bool, is_message_call: bool) -> PyResult<Bytes> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
             "Expect call transaction"
         );
         trace!(sender=?env.tx.caller, "deploying contract");
 
-        let result = self.run_env(env, is_static)?;
+        let result = self.run_env(env, is_static, is_message_call)?;
         if let Success { output, .. } = result {
             if let Output::Call(_) = output {
                 Ok(output.into_data())
@@ -394,12 +394,12 @@ impl EVM {
         }
     }
 
-    fn run_env(&mut self, env: RevmEnv, is_static: bool) -> PyResult<RevmExecutionResult> {
+    fn run_env(&mut self, env: RevmEnv, is_static: bool, is_message_call: bool) -> PyResult<RevmExecutionResult> {
         self.context.env = Box::new(env);
         let evm_context: EvmContext<DB> =
             replace(&mut self.context, EvmContext::new(DB::new_memory()));
         let (result, evm_context) =
-            call_evm(evm_context, self.handler_cfg, self.tracing, is_static);
+            call_evm(evm_context, self.handler_cfg, self.tracing, is_static, is_message_call);
         self.context = evm_context;
         self.result = result.as_ref().ok().cloned();
         result
