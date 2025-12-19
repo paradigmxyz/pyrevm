@@ -22,6 +22,7 @@ pub(crate) fn call_evm(
     handler_cfg: HandlerCfg,
     tracing: bool,
     is_static: bool,
+    is_message_call: bool,
 ) -> (PyResult<ExecutionResult>, EvmContext<DB>) {
     if tracing {
         let tracer = TracerEip3155::new(Box::new(crate::pystdout::PySysStdout {}));
@@ -35,7 +36,7 @@ pub(crate) fn call_evm(
             })
             .append_handler_register(inspector_handle_register)
             .build();
-        (run_evm(&mut evm, is_static), evm.context.evm)
+        (run_evm(&mut evm, is_static, is_message_call), evm.context.evm)
     } else {
         let mut evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -46,12 +47,12 @@ pub(crate) fn call_evm(
                 },
             })
             .build();
-        (run_evm(&mut evm, is_static), evm.context.evm)
+        (run_evm(&mut evm, is_static, is_message_call), evm.context.evm)
     }
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool) -> PyResult<ExecutionResult> {
+fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool, is_message_call: bool) -> PyResult<ExecutionResult> {
     let logs_i = evm.context.evm.journaled_state.logs.len();
 
     evm.handler
@@ -90,8 +91,11 @@ fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool) -> PyResult<Executi
     // load precompiles
     ctx.evm.set_precompiles(pre_exec.load_precompiles());
 
-    // deduce caller balance with its limit.
-    pre_exec.deduct_caller(ctx).map_err(pyerr)?;
+    // deduct_caller performs tx-level state checks and updates
+    if !is_message_call {
+        // deduce caller balance with its limit.
+        pre_exec.deduct_caller(ctx).map_err(pyerr)?;
+    }
 
     let gas_limit = ctx.evm.env.tx.gas_limit - initial_gas_spend;
 
@@ -123,15 +127,18 @@ fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool) -> PyResult<Executi
         .last_frame_return(ctx, &mut result)
         .map_err(pyerr)?;
 
-    let post_exec = evm.handler.post_execution();
-    // Reimburse the caller
-    post_exec
-        .reimburse_caller(ctx, result.gas())
-        .map_err(pyerr)?;
-    // Reward beneficiary
-    post_exec
-        .reward_beneficiary(ctx, result.gas())
-        .map_err(pyerr)?;
+    // Skip tx-level post-execution for message calls
+    if !is_message_call {
+        let post_exec = evm.handler.post_execution();
+        // Reimburse the caller
+        post_exec
+            .reimburse_caller(ctx, result.gas())
+            .map_err(pyerr)?;
+        // Reward beneficiary
+        post_exec
+            .reward_beneficiary(ctx, result.gas())
+            .map_err(pyerr)?;
+    }
 
     let logs = ctx.evm.journaled_state.logs[logs_i..].to_vec();
 
