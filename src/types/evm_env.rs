@@ -3,8 +3,8 @@ use std::default::Default;
 use pyo3::types::PyTuple;
 use pyo3::{pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python};
 use revm::primitives::{
-    Address, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv, CreateScheme,
-    Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
+    Address, AnalysisKind, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv,
+    CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
 };
 
 use crate::utils::{addr, addr_or_zero, from_pybytes};
@@ -348,8 +348,50 @@ pub struct CfgEnv(RevmCfgEnv);
 #[pymethods]
 impl CfgEnv {
     #[new]
-    fn new() -> Self {
-        CfgEnv(RevmCfgEnv::default())
+    fn new(
+        chain_id: Option<u64>,
+        limit_contract_code_size: Option<usize>,
+        perf_analyse_created_bytecodes: Option<&str>,
+    ) -> PyResult<Self> {
+        let mut cfg = RevmCfgEnv::default();
+        if let Some(id) = chain_id {
+            cfg.chain_id = id;
+        }
+        if let Some(limit) = limit_contract_code_size {
+            cfg.limit_contract_code_size = Some(limit);
+        }
+        if let Some(analysis) = perf_analyse_created_bytecodes {
+            cfg.perf_analyse_created_bytecodes = match analysis.to_lowercase().as_str() {
+                "raw" => AnalysisKind::Raw,
+                "check" => AnalysisKind::Check,
+                "analyse" | "analyze" => AnalysisKind::Analyse,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(
+                        "Invalid analysis kind. Expected 'raw', 'check', or 'analyse'",
+                    ))
+                }
+            };
+        }
+        Ok(CfgEnv(cfg))
+    }
+
+    #[getter]
+    fn chain_id(&self) -> u64 {
+        self.0.chain_id
+    }
+
+    #[getter]
+    fn limit_contract_code_size(&self) -> Option<usize> {
+        self.0.limit_contract_code_size
+    }
+
+    #[getter]
+    fn perf_analyse_created_bytecodes(&self) -> &str {
+        match self.0.perf_analyse_created_bytecodes {
+            AnalysisKind::Raw => "raw",
+            AnalysisKind::Check => "check",
+            AnalysisKind::Analyse => "analyse",
+        }
     }
 
     fn __str__(&self) -> PyResult<String> {
