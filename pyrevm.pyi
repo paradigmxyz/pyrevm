@@ -2,7 +2,19 @@ from typing import Optional, Type
 
 
 class CfgEnv:
-    def __new__(cls: Type["CfgEnv"]) -> "CfgEnv": ...
+    def __new__(
+        cls: Type["CfgEnv"],
+        chain_id: Optional[int] = None,
+        limit_contract_code_size: Optional[int] = None,
+        perf_analyse_created_bytecodes: Optional[str] = None,
+    ) -> "CfgEnv": ...
+
+    @property
+    def chain_id(self) -> int: ...
+    @property
+    def limit_contract_code_size(self) -> Optional[int]: ...
+    @property
+    def perf_analyse_created_bytecodes(self) -> str: ...
 
 class BlockEnv:
     def __new__(
