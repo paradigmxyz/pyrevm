@@ -21,7 +21,7 @@ jobs:
           poetry-version: "2.1.1"
 
       - name: Install deps
-        run: poetry install
+        run: poetry install --no-root
 
       # May need to install Rust?
       - name: Build the Rust package
