@@ -1,5 +1,6 @@
 [project]
 name = "pyrevm"
+version = "0.3.7"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Rust",
@@ -9,7 +10,7 @@ classifiers = [
 
 [tool.poetry]
 name = "pyrevm"
-version = "0.3.6"  # Cargo.toml needs to be updated for releases
+version = "0.3.7"
 description = "Python bindings to rust evm (revm)"
 authors = ["Georgios Konstantopoulos <me@gakonst.com>", "Dani Popes", "Daniel Schiavini", "Charles Cooper"]
 
