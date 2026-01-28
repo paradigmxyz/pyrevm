@@ -7,7 +7,7 @@ import pytest
 from tests.utils import encode_address, encode_uint, load_contract_bin
 
 address = "0x1000000000000000000000000000000000000001"
-address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+address2 = "0x1000000000000000000000000000000000000002"
 
 # use your own key during development to avoid rate limiting the CI job
 fork_url = (
