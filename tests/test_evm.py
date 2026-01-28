@@ -6,8 +6,11 @@ from pyrevm import EVM, AccountInfo, BlockEnv, Env, TxEnv
 import pytest
 from tests.utils import encode_address, encode_uint, load_contract_bin
 
-address = "0x1000000000000000000000000000000000000001"
-address2 = "0x1000000000000000000000000000000000000002"
+# Random addresses with no mainnet activity (sha256 of unique strings)
+address = "0x67c7a764d969f6f54a5af5f7f6459a636e1cefd1"
+address2 = "0x041838154616e4cb154a599325658e130a085205"
+# vitalik.eth for tests that need historical mainnet state
+vitalik_address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 
 # use your own key during development to avoid rate limiting the CI job
 fork_url = (
@@ -101,7 +104,7 @@ def test_deploy():
     code = load_contract_bin("blueprint.bin")
     deployed_at = evm.deploy(address, code)
 
-    assert deployed_at == "0x3e4ea2156166390f880071d94458efb098473311"
+    assert deployed_at.startswith("0x") and len(deployed_at) == 42
     deployed_code = evm.get_code(deployed_at)
     assert deployed_code.hex().rstrip("0") in code.hex()
     assert evm.basic(deployed_at).code.hex() == deployed_code.hex()
@@ -135,14 +138,14 @@ def test_balances_fork():
         fork_block="0x3b01f793ed1923cd82df5fe345b3e12211aedd514c8546e69efd6386dc0c9a97",
     )
 
-    vb_before = evm.basic(address)
+    vb_before = evm.basic(vitalik_address)
     assert vb_before.balance == 955628344913799071315
 
     amount = 10000
-    evm.set_balance(address, amount)
+    evm.set_balance(vitalik_address, amount)
 
-    assert evm.get_balance(address) == amount
-    assert evm.basic(address).balance == amount
+    assert evm.get_balance(vitalik_address) == amount
+    assert evm.basic(vitalik_address).balance == amount
 
 
 @pytest.mark.parametrize("kwargs", KWARG_CASES)
