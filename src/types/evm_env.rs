@@ -3,8 +3,8 @@ use std::default::Default;
 use pyo3::types::PyTuple;
 use pyo3::{pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python};
 use revm::primitives::{
-    Address, AnalysisKind, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv,
-    CfgEnv as RevmCfgEnv, CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
+    Address, AnalysisKind, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv,
+    CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
 };
 
 use crate::utils::{addr, addr_or_zero, from_pybytes};
@@ -82,7 +82,7 @@ impl TxEnv {
             caller: addr_or_zero(caller)?,
             gas_limit: gas_limit.unwrap_or(u64::MAX),
             gas_price: gas_price.unwrap_or_default(),
-            gas_priority_fee: gas_priority_fee.map(Into::into),
+            gas_priority_fee,
             transact_to: match to {
                 Some(inner) => TransactTo::call(addr(inner)?),
                 None => salt
@@ -129,7 +129,7 @@ impl TxEnv {
 
     #[getter]
     fn gas_priority_fee(&self) -> Option<U256> {
-        self.0.gas_priority_fee.map(Into::into)
+        self.0.gas_priority_fee
     }
 
     #[getter]

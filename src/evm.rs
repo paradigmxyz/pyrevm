@@ -375,7 +375,12 @@ impl EVM {
         }
     }
 
-    fn call_with_env(&mut self, env: RevmEnv, is_static: bool, is_message_call: bool) -> PyResult<Bytes> {
+    fn call_with_env(
+        &mut self,
+        env: RevmEnv,
+        is_static: bool,
+        is_message_call: bool,
+    ) -> PyResult<Bytes> {
         debug_assert!(
             matches!(env.tx.transact_to, TransactTo::Call(_)),
             "Expect call transaction"
@@ -394,12 +399,22 @@ impl EVM {
         }
     }
 
-    fn run_env(&mut self, env: RevmEnv, is_static: bool, is_message_call: bool) -> PyResult<RevmExecutionResult> {
-        self.context.env = Box::new(env);
+    fn run_env(
+        &mut self,
+        env: RevmEnv,
+        is_static: bool,
+        is_message_call: bool,
+    ) -> PyResult<RevmExecutionResult> {
+        *self.context.env = env;
         let evm_context: EvmContext<DB> =
             replace(&mut self.context, EvmContext::new(DB::new_memory()));
-        let (result, evm_context) =
-            call_evm(evm_context, self.handler_cfg, self.tracing, is_static, is_message_call);
+        let (result, evm_context) = call_evm(
+            evm_context,
+            self.handler_cfg,
+            self.tracing,
+            is_static,
+            is_message_call,
+        );
         self.context = evm_context;
         self.result = result.as_ref().ok().cloned();
         result

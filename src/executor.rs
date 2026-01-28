@@ -36,7 +36,10 @@ pub(crate) fn call_evm(
             })
             .append_handler_register(inspector_handle_register)
             .build();
-        (run_evm(&mut evm, is_static, is_message_call), evm.context.evm)
+        (
+            run_evm(&mut evm, is_static, is_message_call),
+            evm.context.evm,
+        )
     } else {
         let mut evm = Evm::builder()
             .with_context_with_handler_cfg(ContextWithHandlerCfg {
@@ -47,12 +50,19 @@ pub(crate) fn call_evm(
                 },
             })
             .build();
-        (run_evm(&mut evm, is_static, is_message_call), evm.context.evm)
+        (
+            run_evm(&mut evm, is_static, is_message_call),
+            evm.context.evm,
+        )
     }
 }
 
 /// Calls the given evm. This is originally a copy of revm::Evm::transact, but it calls our own output function
-fn run_evm<EXT>(evm: &mut Evm<'_, EXT, DB>, is_static: bool, is_message_call: bool) -> PyResult<ExecutionResult> {
+fn run_evm<EXT>(
+    evm: &mut Evm<'_, EXT, DB>,
+    is_static: bool,
+    is_message_call: bool,
+) -> PyResult<ExecutionResult> {
     let logs_i = evm.context.evm.journaled_state.logs.len();
 
     evm.handler

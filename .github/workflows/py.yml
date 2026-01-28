@@ -10,18 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
       - uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: "1.8.2"
+          poetry-version: "2.1.1"
 
       - name: Install deps
-        run: poetry install
+        run: poetry install --no-root
 
       # May need to install Rust?
       - name: Build the Rust package
