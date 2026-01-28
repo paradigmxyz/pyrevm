@@ -6,7 +6,7 @@ from pyrevm import EVM, AccountInfo, BlockEnv, Env, TxEnv
 import pytest
 from tests.utils import encode_address, encode_uint, load_contract_bin
 
-address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"  # vitalik.eth
+address = "0x1000000000000000000000000000000000000001"
 address2 = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
 
 # use your own key during development to avoid rate limiting the CI job
@@ -34,6 +34,8 @@ def test_revm_fork():
     )
 
     assert evm.env.block.timestamp == 100
+
+    evm.set_balance(address, 1_000_000)
 
     vb_before = evm.basic(address)
     assert vb_before is not None
