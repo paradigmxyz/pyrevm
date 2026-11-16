@@ -22,7 +22,7 @@ pub(crate) fn pyerr<T: fmt::Debug>(err: T) -> PyErr {
     PyRuntimeError::new_err(format!("{err:?}"))
 }
 
-pub(crate) fn from_pybytes(b: &PyBytes) -> PyResult<B256> {
+pub(crate) fn from_pybytes(b: &Bound<'_, PyBytes>) -> PyResult<B256> {
     B256::try_from(b.as_bytes()).map_err(|e| PyTypeError::new_err(e.to_string()))
 }
 
