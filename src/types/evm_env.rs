@@ -1,7 +1,7 @@
 use std::default::Default;
 
-use pyo3::types::PyTuple;
-use pyo3::{pyclass, pymethods, types::PyBytes, PyObject, PyResult, Python};
+use pyo3::prelude::*;
+use pyo3::types::{PyBytes, PyTuple};
 use revm::primitives::{
     Address, AnalysisKind, BlobExcessGasAndPrice, BlockEnv as RevmBlockEnv, CfgEnv as RevmCfgEnv,
     CreateScheme, Env as RevmEnv, TransactTo, TxEnv as RevmTxEnv, B256, U256,
@@ -16,6 +16,7 @@ pub struct Env(RevmEnv);
 #[pymethods]
 impl Env {
     #[new]
+    #[pyo3(signature = (cfg = None, block = None, tx = None))]
     fn new(cfg: Option<CfgEnv>, block: Option<BlockEnv>, tx: Option<TxEnv>) -> Self {
         Env(RevmEnv {
             cfg: cfg.unwrap_or_default().into(),
@@ -63,6 +64,11 @@ pub struct TxEnv(pub RevmTxEnv);
 #[pymethods]
 impl TxEnv {
     #[new]
+    #[pyo3(signature = (
+        caller = None, gas_limit = None, gas_price = None, gas_priority_fee = None, to = None,
+        value = None, data = None, chain_id = None, nonce = None, salt = None, access_list = None,
+        blob_hashes = None, max_fee_per_blob_gas = None,
+    ))]
     pub fn new(
         caller: Option<&str>,
         gas_limit: Option<u64>,
@@ -74,8 +80,8 @@ impl TxEnv {
         chain_id: Option<u64>,
         nonce: Option<u64>,
         salt: Option<U256>,
-        access_list: Option<Vec<&PyTuple /*str, list[int]*/>>,
-        blob_hashes: Option<Vec<&PyBytes>>,
+        access_list: Option<Vec<Bound<'_, PyTuple> /*str, list[int]*/>>,
+        blob_hashes: Option<Vec<Bound<'_, PyBytes>>>,
         max_fee_per_blob_gas: Option<U256>,
     ) -> PyResult<Self> {
         Ok(TxEnv(RevmTxEnv {
@@ -106,7 +112,7 @@ impl TxEnv {
             blob_hashes: blob_hashes
                 .unwrap_or_default()
                 .iter()
-                .map(|b| from_pybytes(b))
+                .map(from_pybytes)
                 .collect::<PyResult<Vec<B256>>>()?,
             max_fee_per_blob_gas,
         }))
@@ -192,10 +198,10 @@ impl TxEnv {
     }
 
     #[setter]
-    fn set_blob_hashes(&mut self, blob_hashes: Vec<&PyBytes>) -> PyResult<()> {
+    fn set_blob_hashes(&mut self, blob_hashes: Vec<Bound<'_, PyBytes>>) -> PyResult<()> {
         self.0.blob_hashes = blob_hashes
             .iter()
-            .map(|b| from_pybytes(b))
+            .map(from_pybytes)
             .collect::<PyResult<Vec<B256>>>()?;
         Ok(())
     }
@@ -229,12 +235,16 @@ pub struct BlockEnv(RevmBlockEnv);
 #[pymethods]
 impl BlockEnv {
     #[new]
+    #[pyo3(signature = (
+        number = None, coinbase = None, timestamp = None, difficulty = None, prevrandao = None,
+        basefee = None, gas_limit = None, excess_blob_gas = None,
+    ))]
     fn new(
         number: Option<U256>,
         coinbase: Option<&str>,
         timestamp: Option<U256>,
         difficulty: Option<U256>,
-        prevrandao: Option<&PyBytes>,
+        prevrandao: Option<Bound<'_, PyBytes>>,
         basefee: Option<U256>,
         gas_limit: Option<U256>,
         excess_blob_gas: Option<u64>,
@@ -245,7 +255,7 @@ impl BlockEnv {
             timestamp: timestamp.unwrap_or(U256::from(1)),
             difficulty: difficulty.unwrap_or_default(),
             prevrandao: Some(match prevrandao {
-                Some(b) => from_pybytes(b)?,
+                Some(b) => from_pybytes(&b)?,
                 None => B256::ZERO,
             }),
             basefee: basefee.unwrap_or_default(),
@@ -348,6 +358,9 @@ pub struct CfgEnv(RevmCfgEnv);
 #[pymethods]
 impl CfgEnv {
     #[new]
+    #[pyo3(signature = (
+        chain_id = None, limit_contract_code_size = None, perf_analyse_created_bytecodes = None,
+    ))]
     fn new(
         chain_id: Option<u64>,
         limit_contract_code_size: Option<usize>,

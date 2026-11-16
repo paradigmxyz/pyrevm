@@ -2,7 +2,6 @@
 #![warn(unreachable_pub)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![deny(unused_must_use, rust_2018_idioms)]
-#![allow(non_local_definitions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::too_many_arguments)]
 
@@ -21,7 +20,7 @@ pub use types::*;
 pub use utils::fake_exponential;
 
 #[pymodule]
-fn pyrevm(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn pyrevm(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EVM>()?;
 
     // Types

@@ -1,5 +1,5 @@
+use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3::Python;
 use std::io::Write;
 
 pub(crate) struct PySysStdout;
@@ -12,13 +12,14 @@ impl Write for PySysStdout {
         Python::with_gil(|py| {
             let locals = PyDict::new(py);
             locals.set_item("s", s).unwrap();
-            py.run("print(s, end='')", None, Some(locals)).unwrap();
+            py.run(c"print(s, end='')", None, Some(&locals)).unwrap();
         });
         Ok(buf.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Python::with_gil(|py| {
-            py.run("import sys;sys.stdout.flush()", None, None).unwrap();
+            py.run(c"import sys;sys.stdout.flush()", None, None)
+                .unwrap();
         });
         Ok(())
     }

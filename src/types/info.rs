@@ -35,8 +35,8 @@ impl AccountInfo {
     fn new(
         balance: Option<U256>,
         nonce: u64,
-        code_hash: Option<&PyBytes>,
-        code: Option<&PyBytes>,
+        code_hash: Option<Bound<'_, PyBytes>>,
+        code: Option<Bound<'_, PyBytes>>,
     ) -> PyResult<Self> {
         let code = code.map(|bytes| Bytecode::new_raw(bytes.as_bytes().to_vec().into()));
         let code_hash = code_hash
